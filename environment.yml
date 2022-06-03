@@ -1,0 +1,10 @@
+# run: conda env create --file environment.yml
+name: xtralite-dev
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.6
+  - numpy
+  - netcdf4
+  - dask
+  - xarray
