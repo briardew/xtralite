@@ -32,7 +32,7 @@ modules and you're running some version of C shell (yikes). On Discover, you
 can load the necessary modules by running
 ```
     module purge
-    module load python/GEOSpyD/Min4.9.2_py3.9
+    module load python/GEOSpyD
     module load nco/5.0.1
     setenv OMP_NUM_THREADS 28
 ```
