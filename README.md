@@ -1,5 +1,5 @@
 # xtralite
-Acquire, build, and prepare constituent data for assimilation
+Acquires, builds, and prepares constituent data for assimilation.
 
 ## Getting started
 The xtralite utility requires wget and the shell NCO utilities. They are
