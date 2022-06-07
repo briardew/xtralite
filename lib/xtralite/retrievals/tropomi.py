@@ -37,15 +37,14 @@ TIME0  = dtm.datetime(2010, 1, 1)
 
 def setup(**xlargs):
     from xtralite.retrievals import default
-    from xtralite.retrievals._translate import tropomi as translate
+    from xtralite.retrievals.translate.tropomi import translate
 
     xlargs['ftail'] = xlargs.get('ftail', FTAIL)
 
     xlargs = default.setup(**xlargs)
 
     var = xlargs.get('var', '*')
-    if '*' not in var:
-        xlargs['trfun'] = translate.tropomi[var]
+    if '*' not in var: xlargs['trfun'] = translate[var]
 
     return xlargs
 

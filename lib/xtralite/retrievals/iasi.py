@@ -31,7 +31,7 @@ def setup(**xlargs):
 
 def build(**xlargs):
     from subprocess import call
-#   from xtralite.retrievals._translate import iasi as translate
+#   from xtralite.retrievals.translate import iasi as translate
 
     mod = xlargs.get('mod', '*')
     var = xlargs.get('var', '*')

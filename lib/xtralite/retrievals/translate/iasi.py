@@ -18,7 +18,7 @@ from subprocess import call
 
 # IASI CH4 to xtralite
 #=====================
-def iasi_ch4(fin, ftr):
+def translate_ch4(fin, ftr):
     RECDIM = 'nsound'
 
 #   1. Flatten groups, delete sounding_id, and convert to netCDF4; otherwise
@@ -28,7 +28,7 @@ def iasi_ch4(fin, ftr):
 
 # IASI CO to xtralite
 #====================
-def iasi_co(fin, ftr):
+def translate_co(fin, ftr):
     RECDIM = 'nsound'
 
 #   1. Flatten groups, delete sounding_id, and convert to netCDF4; otherwise
@@ -37,6 +37,6 @@ def iasi_co(fin, ftr):
         'sounding_id', fin, ftr])
 
 # Will need to depend on version for co
-iasi = {
-    'iasi_ch4': iasi_ch4,
-    'iasi_co':  iasi_co}
+translate = {
+    'ch4': translate_ch4,
+    'co':  translate_co}

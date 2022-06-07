@@ -39,11 +39,12 @@ parser.add_argument('--codas', help='prepare for codas (default: false)',
     action='store_true')
 parser.add_argument('--repro', help='reprocess/overwrite (default: false)',
     action='store_true')
-parser.add_argument('--head', help='head data directory (default: %(default)s)',
-    default='./data')
+parser.add_argument('--head', help='head data directory (default: ./data)')
 parser.add_argument('--log', help='log file (default: stdout)')
 
 # Construct argument dictionary
 xlargs = vars(parser.parse_args())
+
+if xlargs['head'] is None: xlargs.pop('head')
 
 sys.exit(xl.build(**xlargs))

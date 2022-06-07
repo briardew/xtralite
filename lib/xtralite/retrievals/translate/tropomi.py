@@ -18,7 +18,7 @@ from subprocess import check_call
 
 RECDIM = 'nsound'
 
-def tropomi_ch4(fin, ftr):
+def translate_ch4(fin, ftr):
     '''Translate TROPOMI column CH4 retrievals to xtralite'''
 #   1. Flatten groups
 #   Need -5 so rename doesn't mangle coordiates, converted back below
@@ -87,7 +87,7 @@ def tropomi_ch4(fin, ftr):
 
     return None
 
-def tropomi_co(fin, ftr):
+def translate_co(fin, ftr):
     '''Translate TROPOMI column CO retrievals to xtralite'''
 #   1. Flatten groups
 #   Need -5 so rename doesn't mangle coordiates, converted back below
@@ -142,7 +142,7 @@ def tropomi_co(fin, ftr):
 
     return None
 
-def tropomi_hcho(fin, ftr):
+def translate_hcho(fin, ftr):
     '''Translate TROPOMI column HCHO retrievals to xtralite'''
 #   1. Flatten groups
 #   Need -5 so rename doesn't mangle coordiates, converted back below
@@ -210,7 +210,7 @@ def tropomi_hcho(fin, ftr):
 
     return None
 
-def tropomi_so2(fin, ftr):
+def translate_so2(fin, ftr):
     '''Translate TROPOMI column SO2 retrievals to xtralite'''
 #   1. Flatten groups
 #   Need -5 so rename doesn't mangle coordiates, converted back below
@@ -278,7 +278,7 @@ def tropomi_so2(fin, ftr):
 
     return None
 
-def tropomi_no2(fin, ftr):
+def translate_no2(fin, ftr):
     '''Translate TROPOMI column NO2 retrievals to xtralite'''
 #   1. Flatten groups
 #   Need -5 so rename doesn't mangle coordiates, converted back below
@@ -343,7 +343,7 @@ def tropomi_no2(fin, ftr):
 
     return None
 
-def tropomi_o3(fin, ftr):
+def translate_o3(fin, ftr):
     '''Translate TROPOMI column O3 retrievals to xtralite'''
 #   1. Flatten groups
 #   Need -5 so rename doesn't mangle coordiates, converted back below
@@ -400,10 +400,10 @@ def tropomi_o3(fin, ftr):
 
     return None
 
-tropomi = {
-    'ch4':  tropomi_ch4,
-    'co':   tropomi_co,
-    'hcho': tropomi_hcho,
-    'so2':  tropomi_so2,
-    'no2':  tropomi_no2,
-    'o3':   tropomi_o3}
+translate = {
+    'ch4':  translate_ch4,
+    'co':   translate_co,
+    'hcho': translate_hcho,
+    'so2':  translate_so2,
+    'no2':  translate_no2,
+    'o3':   translate_o3}

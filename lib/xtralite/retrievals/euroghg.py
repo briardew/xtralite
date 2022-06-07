@@ -21,16 +21,20 @@ SERVE = 'https://dap.ceda.ac.uk/neodc'
 # leicester, uol, and ocpr are different names for same thing
 modlist  = ['besd', 'wfmd', 'imap', 'leicester', 'uol', 'ocpr']
 varlist  = ['co2', 'ch4']
-satlist  = ['sciamachy', 'gosat']
+satlist  = ['sciam', 'gosat']
 satday0  = [dtm.datetime(2002,10, 1), dtm.datetime(2009, 4, 1)]
 # There are BESD XCO2 GOSAT retrievals somewhere that I can't find
 # Would only use for NRT
-namelist = ['besd_co2_sciamachy', 'wfmd_co2_sciamachy', 'wfmd_ch4_sciamachy',
-    'imap_ch4_sciamachy', 'leicester_ch4_gosat']
+namelist = ['besd_co2_sciam', 'wfmd_co2_sciam', 'wfmd_ch4_sciam',
+    'imap_ch4_sciam', 'ocpr_ch4_gosat']
 
 def setup(**xlargs):
     from xtralite.retrievals import default
 
+#   Make everything sit in euroghg directory
+    xlargs['head'] = xlargs.get('head', './data/euroghg')
+
+    print(xlargs)
     xlargs = default.setup(**xlargs)
 
     return xlargs
@@ -38,7 +42,7 @@ def setup(**xlargs):
 def build(**xlargs):
     from subprocess import call
     from os.path import expanduser
-    from xtralite.retrievals._translate import euroghg as translate
+    from xtralite.retrievals.translate.euroghg import translate
 
 #   Get retrieval arguments
     mod = xlargs.get('mod', '*')
@@ -53,7 +57,7 @@ def build(**xlargs):
     verlo = ver.lower()
 
 #   Greedy match all SCIAMACHY abbreviations
-    if satlo[:3] == 'sci': satlo = 'sciamachy'
+    if satlo[:3] == 'sci': satlo = 'sciam'
 
 #   Determine timespan
     jdbeg = xlargs.get('jdbeg', dtm.datetime(1980, 1, 1))
@@ -62,7 +66,7 @@ def build(**xlargs):
 
 #   Set version (ver) and archive directory (ardir) based on retrieval
     if modlo == 'besd':
-        if varlo != 'co2' or satlo != 'sciamachy':
+        if varlo != 'co2' or satlo != 'sciam':
             sys.stderr.write('*** WARNING *** BESD retrieval only ' +
                 'available for SCIAMACHY CO2\n')
             return
@@ -71,7 +75,7 @@ def build(**xlargs):
         fhead = 'ESACCI-GHG-L2-CO2-SCIAMACHY-BESD-'
 
     elif modlo == 'wfmd':
-        if varlo not in ['co2', 'ch4'] or satlo != 'sciamachy':
+        if varlo not in ['co2', 'ch4'] or satlo != 'sciam':
             sys.stderr.write('*** WARNING *** WFMD retrieval only ' +
                 'available for SCIAMACHY CO2 and CH4\n')
             return
@@ -81,7 +85,7 @@ def build(**xlargs):
         fhead = 'ESACCI-GHG-L2-' + var.upper() + '-SCIAMACHY-WFMD-'
 
     elif modlo == 'imap':
-        if varlo != 'ch4' or satlo != 'sciamachy':
+        if varlo != 'ch4' or satlo != 'sciam':
             sys.stderr.write('*** WARNING *** IMAP-DOAS retrieval only ' +
                 ' available for SCIAMACHY CH4\n')
             return
@@ -105,7 +109,7 @@ def build(**xlargs):
 
 #   Set codas keys
     if xlargs.get('codas',False):
-        xlargs['trfun'] = lambda fin, ftr: translate.euroghg(fin, ftr, var)
+        xlargs['trfun'] = lambda fin, ftr: translate(fin, ftr, var)
         xlargs['fhead'] = fhead
         if '*' in xlargs.get('fhout','*'):
             xlargs['fhout'] = mod + '_' + var + '_' + sat + '_' + ver + '.'

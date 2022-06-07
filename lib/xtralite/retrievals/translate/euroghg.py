@@ -14,11 +14,11 @@ Translate European GHG retrievals to xtralite
 import datetime as dtm
 import numpy as np
 import netCDF4
-from subprocess import check_call
+from subprocess import check_call, CalledProcessError
 
 RECDIM = 'nsound'
 
-def euroghg(fin, ftr, var):
+def translate(fin, ftr, var):
     '''Translate European GHG retrievals to xtralite'''
 
     varlo = var.lower()
@@ -27,6 +27,13 @@ def euroghg(fin, ftr, var):
     pout = check_call(['ncks', '-O', '-G', ':', fin, ftr])
 
 #   2. Rename dimensions and variables
+    try:
+        pout = check_call(['ncrename', '-O',
+            '-d', 'n,sounding_dim',
+            '-d', 'm,layer_dim', ftr, ftr])
+    except CalledProcessError:
+        pass
+
     pout = check_call(['ncrename', '-O',
         '-d', 'sounding_dim,'+RECDIM,
         '-d', 'layer_dim,navg',

@@ -42,6 +42,9 @@ def build(**xlargs):
 
     xlargs = obsmod.setup(**xlargs)
 
+#   Need to sort out defaults a little better
+    xlargs['head'] = xlargs.get('head', './data')
+
 #   Diagnostic output
     daily = xlargs.get('daily', '*')
     prep  = xlargs.get('prep',  '*')

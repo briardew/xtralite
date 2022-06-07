@@ -23,7 +23,7 @@ namelist = satlist
 
 def setup(**xlargs):
     import sys
-    from xtralite.retrievals._translate import acos as translate
+    from xtralite.retrievals.translate import acos as translate
 
 #   Parse name into satellite, version, etc.
     name = xlargs['name']

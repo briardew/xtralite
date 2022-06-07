@@ -39,7 +39,7 @@ def build(**xlargs):
     import sys
     from subprocess import call
     from os.path import expanduser
-    from xtralite.retrievals._translate import tropess as translate
+    from xtralite.retrievals.translate.tropess import translate
 
 #   Get retrieval arguments
     mod = xlargs.get('mod', '*')
@@ -65,7 +65,7 @@ def build(**xlargs):
 
     xlargs['fhead'] = fhead
     xlargs['fhout'] = mod + '_' + var + '_' + sat + '_' + ver + '.'
-    xlargs['trfun'] = translate.tropess
+    xlargs['trfun'] = translate
 
 #   Determine timespan
     jdbeg = xlargs.get('jdbeg', min(satday0))
