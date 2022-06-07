@@ -70,8 +70,12 @@ info).
 
 ## Design philosophy
 The xtralite utility grew out of an effort to standardize data processing for
-several different constituent data streams. Each data stream had its own set of
-shell scripts that called different functions. As such, xtralite was/is a
-wrapper, written in Python, around a set of shell scripts. A purely pythonic
-implementation, in which those shell commands are done with the netCDF4 or
-xarray Python packages exclusively, might be possible, but isn't necessary.
+several different constituent data streams. Its goal is to put all data in a
+standard format so that individual operators do not need to be written for
+different datasets.
+
+Originally, each datastream had its own set of shell scripts that called
+different functions. As such, xtralite was/is a wrapper, written in Python,
+around a set of shell scripts. A purely pythonic implementation, in which those
+shell commands are done with the netCDF4 or xarray Python packages exclusively,
+might be possible, but isn't necessary.
