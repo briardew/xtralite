@@ -62,3 +62,8 @@ running simply
 ```
     python3 -m xtralite tropomi_ch4 --codas
 ```
+
+You can run these commands in any directory. By default, xtralite will place
+output in the ```data``` subdirectory of the directory you're in. This behavior
+can be changed with the ```--head``` argument (see the help output for more
+info).
