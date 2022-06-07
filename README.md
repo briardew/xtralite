@@ -30,7 +30,6 @@ To "install" with pip in a bash/zsh terminal, run
 If you're using the NCCS Discover system, chances are you need to load some
 modules and you're running some version of C shell (yikes). On Discover, you
 can load the necessary modules by running
-
 ```
     module purge
     module load python/GEOSpyD/Min4.9.2_py3.9
@@ -39,7 +38,6 @@ can load the necessary modules by running
 ```
 
 Then you would run, similar to above,
-
 ```
     python3 -m venv env
     source env/bin/activate.csh
@@ -48,16 +46,20 @@ Then you would run, similar to above,
 
 ## Downloading data
 The remainder of this document assumes you've activated the appropriate Python
-environment.
+environment. In the description above for bash/zsh systems, this was
+```
+    source env/bin/activate
+```
+Recall that you need to add the ```.csh``` extension for C shell systems like
+NCCS discover.
 
 To see a short summary of configuration options, run
-
 ```
     python3 -m xtralite --help
 ```
-
-For example, you can do
-
+For example, you can download all TROPOMI CH4 orbit files, build daily files,
+then split them up into 6-hour chunks suitable for assimilation with CoDAS by
+running simply
 ```
     python3 -m xtralite tropomi_ch4 --codas
 ```
