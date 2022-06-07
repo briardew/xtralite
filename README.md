@@ -45,3 +45,19 @@ Then you would run, similar to above,
     source env/bin/activate.csh
     python3 -m pip install -r requirements.txt -e .
 ```
+
+## Downloading data
+The remainder of this document assumes you've activated the appropriate Python
+environment.
+
+To see a short summary of configuration options, run
+
+```
+    python3 -m xtralite --help
+```
+
+For example, you can do
+
+```
+    python3 -m xtralite tropomi_ch4 --codas
+```
