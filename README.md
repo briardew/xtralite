@@ -33,7 +33,7 @@ can load the necessary modules by running
 ```
     module purge
     module load python/GEOSpyD
-    module load nco/5.0.1
+    module load nco
     setenv OMP_NUM_THREADS 28
 ```
 
