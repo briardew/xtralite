@@ -3,9 +3,9 @@ Acquire, build, and prepare constituent data for assimilation
 
 ## Getting started
 The xtralite utility requires wget and the shell NCO utilities. They are
-provided by default on most systems, but not always. For example, the wget
-utility is not provided by default on MacOS systems, but easily installable
-with homebrew.
+usually already available on most systems, but not always. For example, the
+wget utility is not provided by default on MacOS, but easily installable with
+homebrew.
 
 Most of the work here is getting an environment together that meets the needs
 of xtralite. Detailed examples are below. If you are 100% confident you're in the
