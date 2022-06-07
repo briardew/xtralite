@@ -69,7 +69,7 @@ can be changed with the ```--head``` argument (see the help output for more
 info).
 
 ## Design philosophy
-The xtralite utility grew out of an effort to standardize data processing for
+The xtralite utility grew out of an effort to standardize processing for
 several different constituent data streams. Its goal is to put all data in a
 standard format so that individual operators do not need to be written for
 different datasets.
