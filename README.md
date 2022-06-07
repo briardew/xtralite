@@ -70,6 +70,11 @@ output in the ```data``` subdirectory of the directory you're in. This behavior
 can be changed with the ```--head``` argument (see the help output for more
 info).
 
+Dataset names are comma separated, generally following the convention
+```group_variable_satellite_version``` with the option to omit terms when
+the implication or clear or the user wishes to loop over all options, e.g.,
+```iasi``` generates all IASI variables for all satellites (watch out).
+
 ## Design philosophy
 The xtralite utility grew out of an effort to standardize processing for
 several different constituent data streams. Its goal is to put all data in a
