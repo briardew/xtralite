@@ -105,7 +105,7 @@ def build(**xlargs):
 
 #   Set codas keys
     if xlargs.get('codas',False):
-        xlargs['trfun'] = lambda fin, ftr: translate.all(fin, ftr, var)
+        xlargs['trfun'] = lambda fin, ftr: translate.euroghg(fin, ftr, var)
         xlargs['fhead'] = fhead
         if '*' in xlargs.get('fhout','*'):
             xlargs['fhout'] = mod + '_' + var + '_' + sat + '_' + ver + '.'

@@ -14,53 +14,74 @@ Translate TROPESS retrievals to xtralite
 import datetime as dtm
 import numpy as np
 import netCDF4
-from subprocess import call
+from subprocess import check_call
 
 RECDIM = 'nsound'
 
-def tropess(fin, ftr):
+def translate(fin, ftr):
     '''Translate TROPESS retrievals to xtralite'''
-#   1. Flatten groups and rename dimensions and variables
-    pout = call(['ncks', '-O', '-G', ':', fin, ftr])
-    pout = call(['ncrename', '-d', 'target,'+RECDIM, ftr])
-    pout = call(['ncrename', '-d', 'level,navg', ftr])
-    pout = call(['ncrename', '-v', 'time,time_offset', ftr])
-    pout = call(['ncrename', '-v', 'latitude,lat', ftr])
-    pout = call(['ncrename', '-v', 'longitude,lon', ftr])
-    pout = call(['ncrename', '-v', 'x,obs', ftr])
-    pout = call(['ncrename', '-v', 'xa,priorpro', ftr])
+#   1. Flatten groups
+#   Need -5 so rename doesn't mangle coordiates, converted back below
+    pout = check_call(['ncks', '-O', '-x', '-g', 'geolocation', fin, ftr])
+    pout = check_call(['ncks', '-O', '-5', '-G', ':', ftr, ftr])
 
-#   2. Replace averaging kernel with product of it and pwf
+#   2. Rename dimensions and variables
+    pout = check_call(['ncrename', '-O',
+        '-d', 'target,'+RECDIM,
+        '-d', 'level,navg',
+        '-v', 'time,time_offset',
+        '-v', 'latitude,lat',
+        '-v', 'longitude,lon',
+        '-v', 'xa,priorpro',
+        '-v', 'x,obs', ftr, ftr])
+
     ncf = netCDF4.Dataset(ftr, 'a') 
 
+#   Assume pressures are bottoms and top is zero
     pbotin = ncf.variables['pressure'][:]
-    peavgs = np.append(pbotin, np.zeros((pbotin[:,0].size,1)), 1)
-    dpavgs = peavgs[:,:-1] - peavgs[:,1:]
-    dpavgs.mask = pbotin.mask
+    nsound = pbotin[:].shape[0]
+    navg   = pbotin[:].shape[1]
+
+#   3. Create pressure edges of averaging kernel (peavg)
+    nedge = ncf.createDimension('nedge', navg + 1)
+    peavg = ncf.createVariable('peavg', 'f4', (RECDIM,'nedge'))
+    peavg[:] = np.append(pbotin, np.zeros((nsound,1)), 1)
+    dpavg = peavg[:,:-1] - peavg[:,1:]
+    dpavg.mask = pbotin.mask
+
+#   4. Create column averaging kernel (avgker)
     avgkin = ncf.variables['averaging_kernel'][:]
-#   still not quite right because of ln and dimensions of avgkin
-#   just do a for loop over the damn level variable. there's only 26
-    avgker = np.inner(dpavgs.T, avgkin.T).T
+    avgker = ncf.createVariable('avgker', 'f4', (RECDIM,'navg'))
+    avgker[:] = np.zeros_like(dpavg)
+    pwf = np.zeros_like(dpavg)
+    for kk in range(navg):
+        pwf[:,kk] = dpavg[:,kk] / peavg[:,0]
+        avgker[:] = avgker[:] + dpavg*avgkin[:,:,kk]
+    pwf.mask = dpavg.mask
+    avgker[:].mask = dpavg.mask
 
-#   3. Create total column a priori (priorpro) and uncertainty (uncert)
-    pwf = dpavgs / peavgs[:,1]
-    pwf.mask = dpavgs.mask
+#   Check transpose
+#   Still need to account for log space
 
+#   5. Create column a priori (priorpro) and uncertainty (uncert)
     proa = ncf.variables['priorpro']
     cola = ncf.createVariable('priorobs', 'f4', (RECDIM,))
-    cola.units         = 'ppbv'
-    cola.long_name     = 'Average column a priori'
+    cola.units = 'ppbv'
+    cola.long_name = 'Average column a priori'
     cola.missing_value = np.float32(-999.)
     cola[:] = np.sum(pwf[:]*proa[:], axis=1)
 
-    prou = ncf.variables['uncertainty']
+    prou = ncf.variables['observation_error']
     colu = ncf.createVariable('uncert', 'f4', (RECDIM,))
-    colu.units         = 'ppbv'
-    colu.long_name     = 'Average column uncertainty'
+    colu.units = 'ppbv'
+    colu.long_name = 'Average column uncertainty'
     colu.missing_value = np.float32(-999.)
-    colu[:] = np.sum(pwf[:]*prou[:], axis=1)
+    colu[:] = 0.
+    for kk in range(navg):
+        colu[:] = colu[:] + np.sum(dpavg*prou[:,:,kk], axis=1)
 
-#   4. Create sounding_date and sounding_time variables
+#   6. Create sounding_date and sounding_time variables
+#   Could change to datetime_utc
     dsecs = ncf.variables['time_offset'][:]
 
     t0    = dtm.datetime(1993, 1, 1)
@@ -71,14 +92,20 @@ def tropess(fin, ftr):
         dates[ir] = tt.day    + tt.month*100  + tt.year*10000
         times[ir] = tt.second + tt.minute*100 + tt.hour*10000
 
-    dates.units         = 'MMDDYY'
-    dates.long_name     = 'Sounding Date'
-    dates.missing_value = np.int32(-999)
-    times.units         = 'hhmmss'
-    times.long_name     = 'Sounding Time'
-    times.missing_value = np.int32(-999)
-    times.comment       = 'from scan start time in UTC'
+    dates.units = 'MMDDYY'
+    dates.long_name = 'Sounding Date'
+    times.units = 'hhmmss'
+    times.long_name = 'Sounding Time'
 
     ncf.close()
+
+#   7. Delete extra variables and convert back to netCDF4
+    pout = check_call(['ncks', '-O', '-4', '-x', '-v', 'datetime_utc,' +
+        'time_offset,year_fraction,target_id,average_cloud_eod,' +
+        'cloud_top_pressure,pressure,altitude,air_density,' +
+        'surface_temperature,signal_dof,averaging_kernel,' +
+        'observation_error,x_test,x_raw', ftr, ftr])
+
+#   Land flag is really an int64?
 
     return None

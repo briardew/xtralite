@@ -18,7 +18,7 @@ from subprocess import check_call
 
 RECDIM = 'nsound'
 
-def all(fin, ftr, var):
+def euroghg(fin, ftr, var):
     '''Translate European GHG retrievals to xtralite'''
 
     varlo = var.lower()
