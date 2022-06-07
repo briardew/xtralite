@@ -1,7 +1,6 @@
 # to create a virtual environment: python3 -m venv env
 # to activate virtual environment: source env/bin/activate
 # to install dependencies: python3 -m pip install -r requirements.txt
-python>=3.6
 numpy
 netcdf4
 dask
