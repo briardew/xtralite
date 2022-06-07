@@ -13,6 +13,8 @@ environment you need to be in, you can simply run
 ```
     python3 -m pip install -r requirements.txt -e .
 ```
+The ```-e .``` argument installs xtralite in editable mode, so changes you make
+to the code will appear live in the module.
 
 ### Bash/zsh shells
 *Users on NCCS Discover system see below.*
