@@ -10,7 +10,6 @@ homebrew.
 Most of the work here is getting an environment together that meets the needs
 of xtralite. Detailed examples are below. If you are 100% confident you're in the
 environment you need to be in, you can simply run
-
 ```
     python3 -m pip install -r requirements.txt -e .
 ```
@@ -19,7 +18,6 @@ environment you need to be in, you can simply run
 *Users on NCCS Discover system see below.*
 
 To "install" with pip in a bash/zsh terminal, run
-
 ```
     python3 -m venv env
     source env/bin/activate
