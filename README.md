@@ -14,7 +14,7 @@ environment you need to be in, you can simply run
     python3 -m pip install -r requirements.txt -e .
 ```
 
-### Proletariat
+### Bash/zsh shells
 *Users on NCCS Discover system see below.*
 
 To "install" with pip in a bash/zsh terminal, run
@@ -44,7 +44,8 @@ Then you would run, similar to above,
 
 ## Downloading data
 The remainder of this document assumes you've activated the appropriate Python
-environment. In the description above for bash/zsh systems, this was
+environment. If you followed the steps above for bash/zsh systems, you do this
+with the command
 ```
     source env/bin/activate
 ```
