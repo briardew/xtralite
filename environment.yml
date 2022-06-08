@@ -1,4 +1,7 @@
-# run: conda env create --file environment.yml
+# To create and activate, run:
+#     conda env create -f environment.yml
+#     conda activate xtralite-dev
+# See README.md for more.
 name: xtralite-dev
 channels:
   - conda-forge

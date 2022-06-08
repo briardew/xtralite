@@ -2,29 +2,57 @@
 Acquires, builds, and prepares constituent data for assimilation.
 
 ## Getting started
-The xtralite utility requires wget and the shell NCO utilities. They are
-usually already available on most systems, but not always. For example, the
-wget utility is not provided by default on MacOS, but easily installable with
-homebrew.
+The xtralite utility requires wget and the NCO utilities. They are usually
+available on most systems, but not always. For example, wget is not provided by
+default on MacOS, but easily installable with homebrew.
 
-Most of the work here is getting an environment together that meets the needs
-of xtralite. Detailed examples are below. If you are 100% confident you're in the
-environment you need to be in, you can simply run
+Most of the work involved is preparing an environment. Detailed examples are
+below [see here](#installing-and-activating-environments). If you are 100%
+confident you have the right environment activated, you can run
 ```
     python3 -m pip install -r requirements.txt -e .
 ```
 The ```-e .``` argument installs xtralite in editable mode, so changes you make
 to the code will appear live in the module.
 
-### venv on bash/zsh shells
-*Users on NCCS Discover system see below.*
+## Downloading data
+To see a short summary of configuration options, run
+```
+    python3 -m xtralite --help
+```
+For example, you can download all TROPOMI CH4 orbit files, build daily files,
+then split them up into 6-hour chunks suitable for assimilation with CoDAS by
+running
+```
+    python3 -m xtralite tropomi_ch4 --codas
+```
 
-To "install" with pip in a bash/zsh terminal, run
+You can run these commands in any directory. By default, xtralite will place
+output in the ```data``` subdirectory of the current directory. This can be
+modified with the ```--head``` argument (see the help output for more info).
+
+Dataset names are comma separated, generally following the convention
+```group_variable_satellite_version``` with the option to omit terms when the
+implication is clear or the user wishes to loop over all options, e.g.,
+```iasi``` generates all IASI variables for all satellites (watch out).
+
+## Installing and activating environments
+There are several options for installing and activating an environment. Some of
+the most common are coverd below.
+
+### venv on bash/zsh shells
+To create a virtual environment (typically for PIP installs) in a bash/zsh
+terminal, run
 ```
     python3 -m venv env
-    source env/bin/activate
-    python3 -m pip install -r requirements.txt -e .
 ```
+
+When you start new shells, you'll need to run
+```
+    source env/bin/activate
+```
+to activate the environment. Running just ```deactivate``` will do what it
+says.
 
 ### venv on NCCS Discover
 If you're using the NCCS Discover system, chances are you need to load some
@@ -35,55 +63,24 @@ can load the necessary modules by running
     module load nco
     setenv OMP_NUM_THREADS 28
 ```
+You may want to add that to your ```~/.cshrc``` file, **or else you will need to
+run it every time you activate your Python environment**.
 
 Then you would run, similar to above,
 ```
     python3 -m venv env
-    source env/bin/activate.csh
-    python3 -m pip install -r requirements.txt -e .
 ```
+to install the virtual environment, and
+```
+    source env/bin/activate.csh
+```
+to activate it.
 
 ### Conda
 An ```environment.yml``` file is also provided for Conda. Run something like
 ```
     conda env create -f environment.yml
 ```
-
-## Downloading data
-The remainder of this document assumes you've activated the appropriate Python
-environment. If you followed the steps above for bash/zsh systems, you do this
-with the command
-```
-    source env/bin/activate
-```
-For NCCS Discover, you'll need to load the same modules first too, i.e.,
-```
-    module load python/GEOSpyD
-    module load nco
-    setenv OMP_NUM_THREADS 28
-    source env/bin/activate.csh
-```
-
-To see a short summary of configuration options, run
-```
-    python3 -m xtralite --help
-```
-For example, you can download all TROPOMI CH4 orbit files, build daily files,
-then split them up into 6-hour chunks suitable for assimilation with CoDAS by
-running simply
-```
-    python3 -m xtralite tropomi_ch4 --codas
-```
-
-You can run these commands in any directory. By default, xtralite will place
-output in the ```data``` subdirectory of the directory you're in. This behavior
-can be changed with the ```--head``` argument (see the help output for more
-info).
-
-Dataset names are comma separated, generally following the convention
-```group_variable_satellite_version``` with the option to omit terms when
-the implication or clear or the user wishes to loop over all options, e.g.,
-```iasi``` generates all IASI variables for all satellites (watch out).
 
 ## Design philosophy
 The xtralite utility grew out of an effort to standardize processing for
