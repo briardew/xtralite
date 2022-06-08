@@ -13,7 +13,7 @@ confident you have the right environment activated, you can run
     python3 -m pip install -r requirements.txt -e .
 ```
 The ```-e .``` argument installs xtralite in editable mode, so changes you make
-to the code will appear live in the module.
+to the code will appear live in the package.
 
 ## Downloading data
 To see a short summary of configuration options, run
@@ -55,16 +55,16 @@ to activate the environment. Running just ```deactivate``` will do what it
 says.
 
 ### venv on NCCS Discover
-If you're using the NCCS Discover system, chances are you need to load some
-modules and you're running some version of C shell (yikes). On Discover, you
-can load the necessary modules by running
+If you're on NCCS Discover, chances are you need to load some modules and
+you're running some version of C shell (yikes). On Discover, you can load the
+necessary modules by running
 ```
     module load python/GEOSpyD
     module load nco
     setenv OMP_NUM_THREADS 28
 ```
-You may want to add that to your ```~/.cshrc``` file, **or else you will need to
-run it every time you activate your Python environment**.
+You may want to add that to your ```~/.cshrc``` file, **or else you will need
+to run it every time before you activate your Python environment**.
 
 Then you would run, similar to above,
 ```
@@ -77,10 +77,15 @@ to install the virtual environment, and
 to activate it.
 
 ### Conda
-An ```environment.yml``` file is also provided for Conda. Run something like
+An ```environment.yml``` file is also provided for Conda. Run
 ```
     conda env create -f environment.yml
 ```
+to install the environment and
+```
+    conda activate xtralite-dev
+```
+to activate it.
 
 ## Design philosophy
 The xtralite utility grew out of an effort to standardize processing for
