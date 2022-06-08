@@ -31,7 +31,6 @@ If you're using the NCCS Discover system, chances are you need to load some
 modules and you're running some version of C shell (yikes). On Discover, you
 can load the necessary modules by running
 ```
-    module purge
     module load python/GEOSpyD
     module load nco
     setenv OMP_NUM_THREADS 28
@@ -51,8 +50,13 @@ with the command
 ```
     source env/bin/activate
 ```
-Recall that you need to add the ```.csh``` extension for C shell systems like
-NCCS discover.
+For NCCS Discover, you'll need to load the same modules first too, i.e.,
+```
+    module load python/GEOSpyD
+    module load nco
+    setenv OMP_NUM_THREADS 28
+    source env/bin/activate.csh
+```
 
 To see a short summary of configuration options, run
 ```
