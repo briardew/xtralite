@@ -16,7 +16,7 @@ environment you need to be in, you can simply run
 The ```-e .``` argument installs xtralite in editable mode, so changes you make
 to the code will appear live in the module.
 
-### Bash/zsh shells
+### venv on bash/zsh shells
 *Users on NCCS Discover system see below.*
 
 To "install" with pip in a bash/zsh terminal, run
@@ -26,7 +26,7 @@ To "install" with pip in a bash/zsh terminal, run
     python3 -m pip install -r requirements.txt -e .
 ```
 
-### NCCS Discover
+### venv on NCCS Discover
 If you're using the NCCS Discover system, chances are you need to load some
 modules and you're running some version of C shell (yikes). On Discover, you
 can load the necessary modules by running
@@ -41,6 +41,12 @@ Then you would run, similar to above,
     python3 -m venv env
     source env/bin/activate.csh
     python3 -m pip install -r requirements.txt -e .
+```
+
+### Conda
+An ```environment.yml``` file is also provided for Conda. Run something like
+```
+    conda env create -f environment.yml
 ```
 
 ## Downloading data
