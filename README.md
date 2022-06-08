@@ -7,7 +7,7 @@ available on most systems, but not always. For example, wget is not provided by
 default on MacOS, but easily installable with homebrew.
 
 Most of the work involved is preparing an environment. Detailed examples are
-below [see here](#installing-and-activating-environments). If you are 100%
+below ([see here](#installing-and-activating-environments)). If you are 100%
 confident you have the right environment activated, you can run
 ```
     python3 -m pip install -r requirements.txt -e .
