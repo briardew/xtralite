@@ -57,9 +57,9 @@ to activate the environment. Running just `deactivate` will do what it
 says.
 
 ### venv on NCCS Discover
-If you're on NCCS Discover, chances are you need to load some modules and
-you're running some version of C shell (yikes). On Discover, you can load the
-necessary modules by running
+If you're on NASA's Center for Climate Simulation (NCCS) Discover cluster,
+chances are you need to load some modules and you're running some version of
+C shell (yikes). On Discover, you can load the necessary modules by running
 ```
 module load python/GEOSpyD
 module load nco
