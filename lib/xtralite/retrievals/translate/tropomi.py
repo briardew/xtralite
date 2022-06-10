@@ -18,18 +18,61 @@ from subprocess import check_call
 
 RECDIM = 'nsound'
 
+def _generic(ftr):
+    '''Does the generic stuff'''
+
+#   Create sounding number (nsound), date and time variables
+    ncf = netCDF4.Dataset(ftr, 'a')
+
+    dvec = ncf.variables['date_components'][:].astype(int)
+    date = ncf.createVariable('date', 'i4', (RECDIM,))
+    time = ncf.createVariable('time', 'i4', (RECDIM,))
+#   Have to recreate sounding number because ncks chokes on this
+    nsound = ncf.createVariable(RECDIM, 'i4', (RECDIM,))
+
+    date[:] = dvec[:,0]*10000 + dvec[:,1]*100 + dvec[:,2]
+    time[:] = dvec[:,3]*10000 + dvec[:,4]*100 + dvec[:,5]
+    nsound[:] = range(date.size)
+
+    date.units = 'YYYYMMDD'
+    time.units = 'hhmmss'
+    nsound.units = '1'
+    date.long_name = 'Sounding date'
+    time.long_name = 'Sounding time'
+    nsound.long_name = 'Sounding number'
+    date.missing_value = np.int32(-9999)
+    time.missing_value = np.int32(-9999)
+    nsound.missing_value = np.int32(-9999)
+    time.comment = 'from scan start time in UTC'
+
+#   Create prior column variable (priorobs)
+    apro = ncf.variables['priorpro']
+    acol = ncf.createVariable('priorobs', 'f4', (RECDIM,))
+    acol.units = 'mol m-2'
+    acol.long_name = 'Total column a priori'
+    acol.missing_value = np.float32(-999999.)
+    acol[:] = np.sum(apro[:], axis=1)
+
+    ncf.close()
+
+#   Delete extra variables
+    pout = check_call(['ncks', '-O', '-x', '-v', 'sounding,sounding_id,' +
+        'date_components,time_offset,layer,qa_value,footprint,' +
+        'surface_classification,surface_pressure,solar_zenith_angle',
+        ftr, ftr])
+
+    return None
+
 def translate_ch4(fin, ftr):
     '''Translate TROPOMI column CH4 retrievals to xtralite'''
 #   1. Flatten groups
-#   Need -5 so rename doesn't mangle coordiates, converted back below
-    pout = check_call(['ncks', '-O', '-5', '-G', ':', fin, ftr])
+    pout = check_call(['ncks', '-O', '-G', ':', fin, ftr])
 
 #   2. Rename dimensions and variables
     pout = check_call(['ncrename', '-O',
         '-d', 'sounding,'+RECDIM,
         '-d', 'layer,navg',
         '-d', 'level,nedge',
-        '-v', 'sounding,'+RECDIM,
         '-v', 'date,date_components',
         '-v', 'time,time_offset',
         '-v', 'latitude,lat',
@@ -40,64 +83,38 @@ def translate_ch4(fin, ftr):
         '-v', 'column_averaging_kernel,avgker',
         '-v', 'methane_profile_apriori,priorpro', ftr, ftr])
 
-#   3. Create date and time variables
+#   3. Convert obs and uncert to mol m-2
+#   (averaging kernel has units of "1", so seems legit?)
     ncf = netCDF4.Dataset(ftr, 'a') 
 
-    dvecs = ncf.variables['date_components'][:].astype(int)
-
-    dates = ncf.createVariable('date', 'i4', (RECDIM,))
-    times = ncf.createVariable('time', 'i4', (RECDIM,))
-
-    dates[:] = dvecs[:,0]*10000 + dvecs[:,1]*100 + dvecs[:,2]
-    times[:] = dvecs[:,3]*10000 + dvecs[:,4]*100 + dvecs[:,5]
-
-    dates.units         = 'YYYYMMDD'
-    dates.long_name     = 'Sounding Date'
-    dates.missing_value = np.int32(-9999)
-    times.units         = 'hhmmss'
-    times.long_name     = 'Sounding Time'
-    times.missing_value = np.int32(-9999)
-    times.comment       = 'from scan start time in UTC'
-
-#   4. Convert obs and uncert to mol m-2
-#   (averaging kernel has units of "1", so seems legit)
     dry  = ncf.variables['dry_air_subcolumns']
     xcol = ncf.variables['obs']
     ucol = ncf.variables['uncert']
     xcol.units = 'mol m-2'
     ucol.units = 'mol m-2'
-    xcol[:] = 1.e9 * xcol[:] * np.sum(dry[:], axis=1)
-    ucol[:] = 1.e9 * ucol[:] * np.sum(dry[:], axis=1)
-
-#   4. Create prior column variable (priorobs)
-    apro = ncf.variables['priorpro']
-    acol = ncf.createVariable('priorobs', 'f4', (RECDIM,))
-    acol.units     = 'mol m-2'
-    acol.long_name = 'Total column a priori'
-    acol.missing_value = np.float32(-999999.)
-    acol[:] = np.sum(apro[:], axis=1)
+    xcol[:] = 1.e-9 * xcol[:] * np.sum(dry[:], axis=1)
+    ucol[:] = 1.e-9 * ucol[:] * np.sum(dry[:], axis=1)
 
     ncf.close()
 
-#   6. Delete extra variables and convert back to netCDF4
-    pout = check_call(['ncks', '-O', '-4', '-x', '-v', 'date_components,' +
-        'time_offset,layer,qa_value,footprint,surface_classification,' +
-        'surface_pressure,solar_zenith_angle,level,dry_air_subcolumns,' +
-        'methane_mixing_ratio', ftr, ftr])
+#   4. Do generic stuff
+    _generic(ftr)
+
+#   5. Delete extra variables
+    pout = check_call(['ncks', '-O', '-x', '-v',
+        'level,dry_air_subcolumns,methane_mixing_ratio', ftr, ftr])
 
     return None
 
 def translate_co(fin, ftr):
     '''Translate TROPOMI column CO retrievals to xtralite'''
 #   1. Flatten groups
-#   Need -5 so rename doesn't mangle coordiates, converted back below
-    pout = check_call(['ncks', '-O', '-5', '-G', ':', fin, ftr])
+    pout = check_call(['ncks', '-O', '-G', ':', fin, ftr])
 
 #   2. Rename dimensions and variables
     pout = check_call(['ncrename', '-O',
         '-d', 'sounding,'+RECDIM,
         '-d', 'layer,navg',
-        '-v', 'sounding,'+RECDIM,
         '-v', 'date,date_components',
         '-v', 'time,time_offset',
         '-v', 'latitude,lat',
@@ -106,25 +123,9 @@ def translate_co(fin, ftr):
         '-v', 'carbonmonoxide_total_column_precision,uncert',
         '-v', 'column_averaging_kernel,avgker', ftr, ftr])
 
-#   3. Create date and time variables
+#   3. Create edge dim (nedge) and pressure edges of avgker var (peavg)
     ncf = netCDF4.Dataset(ftr, 'a') 
 
-    dvecs = ncf.variables['date_components'][:].astype(int)
-    dates = ncf.createVariable('date', 'i4', (RECDIM,))
-    times = ncf.createVariable('time', 'i4', (RECDIM,))
-
-    dates[:] = dvecs[:,0]*10000 + dvecs[:,1]*100 + dvecs[:,2]
-    times[:] = dvecs[:,3]*10000 + dvecs[:,4]*100 + dvecs[:,5]
-
-    dates.units         = 'YYYYMMDD'
-    dates.long_name     = 'Sounding Date'
-    dates.missing_value = np.int32(-9999)
-    times.units         = 'hhmmss'
-    times.long_name     = 'Sounding Time'
-    times.missing_value = np.int32(-9999)
-    times.comment       = 'from scan start time in UTC'
-
-#   4. Create edge dim (nedge) and pressure edges of avgker var (peavg)
     avgker = ncf.variables['avgker']
     nedge  = ncf.createDimension('nedge', size=avgker[:].shape[1] + 1)
     zeavg  = ncf.createVariable('zeavg', 'f4', (RECDIM,'nedge'))
@@ -134,25 +135,24 @@ def translate_co(fin, ftr):
 
     ncf.close()
 
-#   5. Delete extra variables and convert back to netCDF4
-    pout = check_call(['ncks', '-O', '-4', '-x', '-v', 'date_components,' +
-        'time_offset,layer,qa_value,footprint,surface_classification,' +
-        'surface_pressure,solar_zenith_angle,height_scattering_layer',
-        ftr, ftr])
+#   4. Do generic stuff
+    _generic(ftr)
+
+#   5. Delete extra variables
+    pout = check_call(['ncks', '-O', '-x', '-v',
+        'height_scattering_layer', ftr, ftr])
 
     return None
 
 def translate_hcho(fin, ftr):
     '''Translate TROPOMI column HCHO retrievals to xtralite'''
 #   1. Flatten groups
-#   Need -5 so rename doesn't mangle coordiates, converted back below
-    pout = check_call(['ncks', '-O', '-5', '-G', ':', fin, ftr])
+    pout = check_call(['ncks', '-O', '-G', ':', fin, ftr])
 
 #   2. Rename dimensions and variables
     pout = check_call(['ncrename', '-O',
         '-d', 'sounding,'+RECDIM,
         '-d', 'layer,navg',
-        '-v', 'sounding,'+RECDIM,
         '-v', 'date,date_components',
         '-v', 'time,time_offset',
         '-v', 'latitude,lat',
@@ -162,33 +162,9 @@ def translate_hcho(fin, ftr):
         '-v', 'averaging_kernel,avgker',
         '-v', 'formaldehyde_profile_apriori,priorpro', ftr, ftr])
 
-#   3. Create date and time variables
+#   3. Create edge dim (nedge) and pressure edges of avgker var (peavg)
     ncf = netCDF4.Dataset(ftr, 'a')
 
-    dvecs = ncf.variables['date_components'][:].astype(int)
-    dates = ncf.createVariable('date', 'i4', (RECDIM,))
-    times = ncf.createVariable('time', 'i4', (RECDIM,))
-
-    dates[:] = dvecs[:,0]*10000 + dvecs[:,1]*100 + dvecs[:,2]
-    times[:] = dvecs[:,3]*10000 + dvecs[:,4]*100 + dvecs[:,5]
-
-    dates.units         = 'YYYYMMDD'
-    dates.long_name     = 'Sounding Date'
-    dates.missing_value = np.int32(-9999)
-    times.units         = 'hhmmss'
-    times.long_name     = 'Sounding Time'
-    times.missing_value = np.int32(-9999)
-    times.comment       = 'from scan start time in UTC'
-
-#   4. Create prior column variable (priorobs)
-    apro = ncf.variables['priorpro']
-    acol = ncf.createVariable('priorobs', 'f4', (RECDIM,))
-    acol.units     = 'mol m-2'
-    acol.long_name = 'Total column a priori'
-    acol.missing_value = np.float32(-999999.)
-    acol[:] = np.sum(apro[:], axis=1)
-
-#   5. Create edge dim (nedge) and pressure edges of avgker var (peavg)
     ak = ncf.variables['tm5_constant_a']
     bk = ncf.variables['tm5_constant_b']
     psurf = ncf.variables['surface_pressure']
@@ -202,10 +178,12 @@ def translate_hcho(fin, ftr):
 
     ncf.close()
 
-#   6. Delete extra variables and convert back to netCDF4
-    pout = check_call(['ncks', '-O', '-4', '-x', '-v', 'date_components,' +
-        'time_offset,layer,qa_value,footprint,surface_classification,' +
-        'surface_pressure,solar_zenith_angle,tm5_constant_a,tm5_constant_b,' +
+#   4. Do generic stuff
+    _generic(ftr)
+
+#   5. Delete extra variables
+    pout = check_call(['ncks', '-O', '-x', '-v',
+        'cloud_fraction_crb,tm5_constant_a,tm5_constant_b,' +
         'formaldehyde_tropospheric_vertical_column_trueness', ftr, ftr])
 
     return None
@@ -213,14 +191,12 @@ def translate_hcho(fin, ftr):
 def translate_so2(fin, ftr):
     '''Translate TROPOMI column SO2 retrievals to xtralite'''
 #   1. Flatten groups
-#   Need -5 so rename doesn't mangle coordiates, converted back below
-    pout = check_call(['ncks', '-O', '-5', '-G', ':', fin, ftr])
+    pout = check_call(['ncks', '-O', '-G', ':', fin, ftr])
 
 #   2. Rename dimensions and variables
     pout = check_call(['ncrename', '-O',
         '-d', 'sounding,'+RECDIM,
         '-d', 'layer,navg',
-        '-v', 'sounding,'+RECDIM,
         '-v', 'date,date_components',
         '-v', 'time,time_offset',
         '-v', 'latitude,lat',
@@ -230,33 +206,9 @@ def translate_so2(fin, ftr):
         '-v', 'averaging_kernel,avgker',
         '-v', 'sulfurdioxide_profile_apriori,priorpro', ftr, ftr])
 
-#   3. Create date and time variables
+#   3. Create edge dim (nedge) and pressure edges of avgker var (peavg)
     ncf = netCDF4.Dataset(ftr, 'a')
 
-    dvecs = ncf.variables['date_components'][:].astype(int)
-    dates = ncf.createVariable('date', 'i4', (RECDIM,))
-    times = ncf.createVariable('time', 'i4', (RECDIM,))
-
-    dates[:] = dvecs[:,0]*10000 + dvecs[:,1]*100 + dvecs[:,2]
-    times[:] = dvecs[:,3]*10000 + dvecs[:,4]*100 + dvecs[:,5]
-
-    dates.units         = 'YYYYMMDD'
-    dates.long_name     = 'Sounding Date'
-    dates.missing_value = np.int32(-9999)
-    times.units         = 'hhmmss'
-    times.long_name     = 'Sounding Time'
-    times.missing_value = np.int32(-9999)
-    times.comment       = 'from scan start time in UTC'
-
-#   4. Create prior column variable (priorobs)
-    apro = ncf.variables['priorpro']
-    acol = ncf.createVariable('priorobs', 'f4', (RECDIM,))
-    acol.units     = 'mol m-2'
-    acol.long_name = 'Total column a priori'
-    acol.missing_value = np.float32(-999999.)
-    acol[:] = np.sum(apro[:], axis=1)
-
-#   5. Create edge dim (nedge) and pressure edges of avgker var (peavg)
     ak = ncf.variables['tm5_constant_a']
     bk = ncf.variables['tm5_constant_b']
     psurf = ncf.variables['surface_pressure']
@@ -270,10 +222,12 @@ def translate_so2(fin, ftr):
 
     ncf.close()
 
-#   6. Delete extra variables and convert back to netCDF4
-    pout = check_call(['ncks', '-O', '-4', '-x', '-v', 'date_components,' +
-        'time_offset,layer,qa_value,footprint,surface_classification,' +
-        'surface_pressure,solar_zenith_angle,tm5_constant_a,tm5_constant_b,' +
+#   4. Do generic stuff
+    _generic(ftr)
+
+#   5. Delete extra variables
+    pout = check_call(['ncks', '-O', '-x', '-v',
+        'cloud_fraction_crb,tm5_constant_a,tm5_constant_b,' +
         'sulfurdioxide_total_vertical_column_trueness', ftr, ftr])
 
     return None
@@ -281,14 +235,12 @@ def translate_so2(fin, ftr):
 def translate_no2(fin, ftr):
     '''Translate TROPOMI column NO2 retrievals to xtralite'''
 #   1. Flatten groups
-#   Need -5 so rename doesn't mangle coordiates, converted back below
-    pout = check_call(['ncks', '-O', '-5', '-G', ':', fin, ftr])
+    pout = check_call(['ncks', '-O', '-G', ':', fin, ftr])
 
 #   2. Rename dimensions and variables
     pout = check_call(['ncrename', '-O',
         '-d', 'sounding,'+RECDIM,
         '-d', 'layer,navg',
-        '-v', 'sounding,'+RECDIM,
         '-v', 'date,date_components',
         '-v', 'time,time_offset',
         '-v', 'latitude,lat',
@@ -297,33 +249,9 @@ def translate_no2(fin, ftr):
         '-v', 'nitrogendioxide_summed_total_column_precision,uncert',
         '-v', 'averaging_kernel,avgker', ftr, ftr])
 
-#   3. Create date and time variables
+#   3. Create edge dim (nedge) and pressure edges of avgker var (peavg)
     ncf = netCDF4.Dataset(ftr, 'a')
 
-    dvecs = ncf.variables['date_components'][:].astype(int)
-    dates = ncf.createVariable('date', 'i4', (RECDIM,))
-    times = ncf.createVariable('time', 'i4', (RECDIM,))
-
-    dates[:] = dvecs[:,0]*10000 + dvecs[:,1]*100 + dvecs[:,2]
-    times[:] = dvecs[:,3]*10000 + dvecs[:,4]*100 + dvecs[:,5]
-
-    dates.units         = 'YYYYMMDD'
-    dates.long_name     = 'Sounding Date'
-    dates.missing_value = np.int32(-9999)
-    times.units         = 'hhmmss'
-    times.long_name     = 'Sounding Time'
-    times.missing_value = np.int32(-9999)
-    times.comment       = 'from scan start time in UTC'
-
-#   4. Create prior column variable (priorobs)
-    apro = ncf.variables['priorpro']
-    acol = ncf.createVariable('priorobs', 'f4', (RECDIM,))
-    acol.units     = 'mol m-2'
-    acol.long_name = 'Total column a priori'
-    acol.missing_value = np.float32(-999999.)
-    acol[:] = np.sum(apro[:], axis=1)
-
-#   5. Create edge dim (nedge) and pressure edges of avgker var (peavg)
     ak = ncf.variables['tm5_constant_a']
     bk = ncf.variables['tm5_constant_b']
     psurf = ncf.variables['surface_pressure']
@@ -335,25 +263,25 @@ def translate_no2(fin, ftr):
 
     ncf.close()
 
-#   6. Delete extra variables and convert back to netCDF4
-    pout = check_call(['ncks', '-O', '-4', '-x', '-v', 'date_components,' +
-        'time_offset,layer,qa_value,footprint,surface_classification,' +
-        'surface_pressure,solar_zenith_angle,tm5_constant_a,tm5_constant_b,' +
-        ftr, ftr])
+#   4. Do generic stuff
+    _generic(ftr)
+
+#   5. Delete extra variables
+    pout = check_call(['ncks', '-O', '-x', '-v',
+        'cloud_fraction_crb,tm5_constant_a,tm5_constant_b', ftr, ftr])
 
     return None
 
 def translate_o3(fin, ftr):
     '''Translate TROPOMI column O3 retrievals to xtralite'''
 #   1. Flatten groups
-#   Need -5 so rename doesn't mangle coordiates, converted back below
-    pout = check_call(['ncks', '-O', '-5', '-G', ':', fin, ftr])
+    pout = check_call(['ncks', '-O', '-G', ':', fin, ftr])
 
 #   2. Rename dimensions and variables
     pout = check_call(['ncrename', '-O',
         '-d', 'sounding,'+RECDIM,
         '-d', 'layer,navg',
-        '-v', 'sounding,'+RECDIM,
+        '-d', 'level,nedge',
         '-v', 'date,date_components',
         '-v', 'time,time_offset',
         '-v', 'latitude,lat',
@@ -364,39 +292,12 @@ def translate_o3(fin, ftr):
         '-v', 'averaging_kernel,avgker',
         '-v', 'ozone_profile_apriori,priorpro', ftr, ftr])
 
-#   3. Create date and time variables
-    ncf = netCDF4.Dataset(ftr, 'a') 
+#   3. Do generic stuff
+    _generic(ftr)
 
-    dvecs = ncf.variables['date_components'][:].astype(int)
-    dates = ncf.createVariable('date', 'i4', (RECDIM,))
-    times = ncf.createVariable('time', 'i4', (RECDIM,))
-
-    dates[:] = dvecs[:,0]*10000 + dvecs[:,1]*100 + dvecs[:,2]
-    times[:] = dvecs[:,3]*10000 + dvecs[:,4]*100 + dvecs[:,5]
-
-    dates.units         = 'YYYYMMDD'
-    dates.long_name     = 'Sounding Date'
-    dates.missing_value = np.int32(-9999)
-    times.units         = 'hhmmss'
-    times.long_name     = 'Sounding Time'
-    times.missing_value = np.int32(-9999)
-    times.comment       = 'from scan start time in UTC'
-
-#   4. Create prior column variable (priorobs)
-    apro = ncf.variables['priorpro']
-    acol = ncf.createVariable('priorobs', 'f4', (RECDIM,))
-    acol.units     = 'mol m-2'
-    acol.long_name = 'Total column a priori'
-    acol.missing_value = np.float32(-999999.)
-    acol[:] = np.sum(apro[:], axis=1)
-
-    ncf.close()
-
-#   6. Delete extra variables and convert back to netCDF4
-    pout = check_call(['ncks', '-O', '-4', '-x', '-v', 'date_components,' +
-        'time_offset,layer,qa_value,footprint,surface_classification,' +
-        'surface_pressure,solar_zenith_angle,tm5_constant_a,tm5_constant_b,' +
-        'solar_zenith_angle,level', ftr, ftr])
+#   4. Delete extra variables
+    pout = check_call(['ncks', '-O', '-x', '-v',
+        'cloud_fraction_crb,level', ftr, ftr])
 
     return None
 

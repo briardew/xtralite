@@ -16,6 +16,7 @@ from subprocess import call
 import datetime as dtm
 import numpy as np
 import netCDF4, os
+import xarray as xr
 
 DEBUG   = False
 VERBOSE = True
@@ -92,69 +93,103 @@ def split3hr(fin, date, **xlargs):
     if RMTMPS: pout = call(['rm', fin])
 
 #===============================================================================
+# This subroutine should receive the two the file strings fleft, frite, and
+# fout, which should be constructed in the chunker subroutine; that way we can
+# test it easily; the for loop should thus go to chunker too
 def paste6hr(date, dprv, **xlargs):
-    '''Paste 3-hour bits together into 6-hour chunks'''
+    '''Paste 3-hour files together into 6-hour chunks'''
 
     TNAME  = xlargs.get('tname',  TNAMEDEF)
     RECDIM = xlargs.get('recdim', RECDIMDEF)
     FTAIL  = xlargs.get('ftail',  FTAILDEF)
     FHOUT  = xlargs['fhout']
 
-#   *** The logic of this could be much cleaner ***
-#   a. Treat chunk that straddles two days differently
-    fleft = xlargs['chunk'] + '/' + FHOUT + dprv + '_21z' + FTAIL + '.bit'
-    frght = xlargs['chunk'] + '/' + FHOUT + date + '_00z' + FTAIL + '.bit'
-    fout  = __DIROUT + '/' + FHOUT + date + '_00z' + FTAIL
-
-    if os.path.isfile(fleft) and os.path.isfile(frght):
-        pout = call(['ncrcat', '-h', '-O', fleft, frght, fout])
-#       Indicate combination of two days in input filenames
-        ncin  = netCDF4.Dataset(frght, 'r') 
-        ncout = netCDF4.Dataset(fout,  'a') 
-        ncout.input_files = ncout.input_files + ', ' + ncin.input_files
-        ncin.close()
-        ncout.close()
-    elif os.path.isfile(fleft):
-        pout = call(['cp', fleft, fout])
-    elif os.path.isfile(frght):
-        pout = call(['cp', frght, fout])
-
     if VERBOSE: print('---')
-    if os.path.isfile(fleft) or os.path.isfile(frght):
-        if RMTMPS:  pout = call(['rm', '-f', fleft, frght])
-        if VERBOSE: print('Writing ' + os.path.basename(fout))
+    for nh in [-3, 3, 9, 15]:
+        jday  = dtm.datetime.strptime(date, '%Y%m%d')
+        jleft = jday + dtm.timedelta(hours=nh)
+        jrght = jday + dtm.timedelta(hours=nh+3)
+        dleft = jleft.strftime('%Y%m%d_%H') + 'z'
+        drght = jrght.strftime('%Y%m%d_%H') + 'z'
 
-        ncout = netCDF4.Dataset(fout, 'a')
-        ncout.history = 'Created on ' + dtm.datetime.now().isoformat()
-        contact = 'Brad Weir <briardew@gmail.com>'
-        if hasattr(ncout, 'contact'): contact = contact + ' / ' + ncout.contact
-        ncout.contact = contact
+        fleft = xlargs['chunk'] + '/' + FHOUT + dleft + FTAIL + '.bit'
+        frght = xlargs['chunk'] + '/' + FHOUT + drght + FTAIL + '.bit'
+        fout  = __DIROUT        + '/' + FHOUT + drght + FTAIL
 
-#   b. Rest of the chunks contained in single day
-    for nh in [3, 9, 15]:
-        fleft = (xlargs['chunk'] + '/' + FHOUT + date + '_' +
-                 str(nh  ).zfill(2) + 'z' + FTAIL + '.bit')
-        frght = (xlargs['chunk'] + '/' + FHOUT + date + '_' +
-                 str(nh+3).zfill(2) + 'z' + FTAIL + '.bit')
-        fout  = (__DIROUT        + '/' + FHOUT + date + '_' +
-                 str(nh+3).zfill(2) + 'z' + FTAIL)
+        flist = []
+        if os.path.isfile(fleft): flist = flist + [fleft]
+        if os.path.isfile(frght): flist = flist + [frght]
 
-        if os.path.isfile(fleft) and os.path.isfile(frght):
-            pout = call(['ncrcat', '-h', '-O', fleft, frght, fout])
-        elif os.path.isfile(fleft):
-            pout = call(['cp', fleft, fout])
-        elif os.path.isfile(frght):
-            pout = call(['cp', frght, fout])
-
-        if os.path.isfile(fleft) or os.path.isfile(frght):
-            if RMTMPS:  pout = call(['rm', '-f', fleft, frght])
+        if len(flist) > 0:
             if VERBOSE: print('Writing ' + os.path.basename(fout))
 
-            ncout = netCDF4.Dataset(fout, 'a')
-            ncout.history = 'Created on ' + dtm.datetime.now().isoformat()
+            xrout = xr.open_mfdataset(flist, mask_and_scale=False)
+            xrout.attrs['input_files'] = ', '.join(flist)
+            xrout.attrs['history'] = 'Created on ' + dtm.datetime.now().isoformat()
             contact = 'Brad Weir <briardew@gmail.com>'
-            if hasattr(ncout, 'contact'): contact = contact + ' / ' + ncout.contact
-            ncout.contact = contact
+            if 'contact' in xrout.attrs:
+                contact = contact + ' / ' + xrout.attrs['contact']
+            xrout.attrs['contact'] = contact
+            xrout.to_netcdf(fout, encoding={RECDIM:{'dtype':'int32'}})
+            xrout.close()
+
+            if RMTMPS: pout = call(['rm', '-f', fleft, frght])
+
+##   *** The logic of this could be much cleaner ***
+##   a. Treat chunk that straddles two days differently
+#    fleft = xlargs['chunk'] + '/' + FHOUT + dprv + '_21z' + FTAIL + '.bit'
+#    frght = xlargs['chunk'] + '/' + FHOUT + date + '_00z' + FTAIL + '.bit'
+#    fout  = __DIROUT + '/' + FHOUT + date + '_00z' + FTAIL
+#
+#    if os.path.isfile(fleft) and os.path.isfile(frght):
+#        pout = call(['ncrcat', '-h', '-O', fleft, frght, fout])
+##       Indicate combination of two days in input filenames
+#        ncin  = netCDF4.Dataset(frght, 'r') 
+#        ncout = netCDF4.Dataset(fout,  'a') 
+#        ncout.input_files = ncout.input_files + ', ' + ncin.input_files
+#        ncin.close()
+#        ncout.close()
+#    elif os.path.isfile(fleft):
+#        pout = call(['cp', fleft, fout])
+#    elif os.path.isfile(frght):
+#        pout = call(['cp', frght, fout])
+#
+#    if VERBOSE: print('---')
+#    if os.path.isfile(fleft) or os.path.isfile(frght):
+#        if RMTMPS:  pout = call(['rm', '-f', fleft, frght])
+#        if VERBOSE: print('Writing ' + os.path.basename(fout))
+#
+#        ncout = netCDF4.Dataset(fout, 'a')
+#        ncout.history = 'Created on ' + dtm.datetime.now().isoformat()
+#        contact = 'Brad Weir <briardew@gmail.com>'
+#        if hasattr(ncout, 'contact'): contact = contact + ' / ' + ncout.contact
+#        ncout.contact = contact
+#
+##   b. Rest of the chunks contained in single day
+#    for nh in [3, 9, 15]:
+#        fleft = (xlargs['chunk'] + '/' + FHOUT + date + '_' +
+#                 str(nh  ).zfill(2) + 'z' + FTAIL + '.bit')
+#        frght = (xlargs['chunk'] + '/' + FHOUT + date + '_' +
+#                 str(nh+3).zfill(2) + 'z' + FTAIL + '.bit')
+#        fout  = (__DIROUT        + '/' + FHOUT + date + '_' +
+#                 str(nh+3).zfill(2) + 'z' + FTAIL)
+#
+#        if os.path.isfile(fleft) and os.path.isfile(frght):
+#            pout = call(['ncrcat', '-h', '-O', fleft, frght, fout])
+#        elif os.path.isfile(fleft):
+#            pout = call(['cp', fleft, fout])
+#        elif os.path.isfile(frght):
+#            pout = call(['cp', frght, fout])
+#
+#        if os.path.isfile(fleft) or os.path.isfile(frght):
+#            if RMTMPS:  pout = call(['rm', '-f', fleft, frght])
+#            if VERBOSE: print('Writing ' + os.path.basename(fout))
+#
+#            ncout = netCDF4.Dataset(fout, 'a')
+#            ncout.history = 'Created on ' + dtm.datetime.now().isoformat()
+#            contact = 'Brad Weir <briardew@gmail.com>'
+#            if hasattr(ncout, 'contact'): contact = contact + ' / ' + ncout.contact
+#            ncout.contact = contact
 
 #===============================================================================
 def chunk(**xlargs):
