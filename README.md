@@ -4,7 +4,7 @@ Acquires, builds, and prepares constituent data for assimilation.
 ## Getting started
 The xtralite utility requires wget and the NCO utilities (viz., ncks). Both are
 usually available on most systems, but not always. For example, wget is not
-provided by default on MacOS, but easily installable with homebrew. Many Python
+provided by default on macOS, but easily installable with homebrew. Many Python
 distributions come with NCO.
 
 Most of the work involved is preparing an environment. Detailed examples are
