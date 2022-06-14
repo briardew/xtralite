@@ -113,8 +113,8 @@ def build(**xlargs):
         if ver == '*': veruse = verout
 
         if veruse.lower() != verout.lower():
-            sys.stderr.write("*** WARNING *** Specified version (%s) " +
-                "doesn't match current version (%s)\n" % (veruse, verout))
+            sys.stderr.write(("*** WARNING *** Specified version (%s) " +
+                "doesn't match current version (%s)\n") % (veruse, verout))
             continue
 
         ardir = 'iasi' + satlet + 'l2/iasi_' + var.lower() + '/' + verin

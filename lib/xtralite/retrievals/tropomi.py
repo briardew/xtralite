@@ -173,8 +173,8 @@ def build(**xlargs):
         if ver == '*': veruse = vernow
 
         if veruse.lower() != vernow.lower():
-            sys.stderr.write("*** WARNING *** Specified version (%s) " +
-                "doesn't match current version (%s)\n" % (veruse, vernow))
+            sys.stderr.write(("*** WARNING *** Specified version (%s) " +
+                "doesn't match current version (%s)\n") % (veruse, vernow))
             continue
 
 #       Directory and filename information (needs some cleaning)
