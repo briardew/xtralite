@@ -1,7 +1,8 @@
 *.py[co]
 backup
-scratch
 data
+scratch
 dist
 build
+env
 lib/xtralite.egg-info
