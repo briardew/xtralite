@@ -3,7 +3,7 @@
 #     source env/bin/activate
 # To install with dependencies, run:
 #     python3 -m pip install -r requirements.txt -e .
-# The -e . is for editable mode. See README.md for more.
+# The `-e .` is for editable mode. See README.md for more.
 numpy
 netcdf4
 dask
