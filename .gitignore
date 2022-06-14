@@ -2,7 +2,7 @@
 backup
 data
 scratch
-dist
 build
+dist
 env
 lib/xtralite.egg-info
