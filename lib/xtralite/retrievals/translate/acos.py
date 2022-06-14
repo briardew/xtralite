@@ -62,11 +62,11 @@ def oco(fin, ftr):
     dates[:] = dvecs[:,0]*10000 + dvecs[:,1]*100 + dvecs[:,2]
     times[:] = dvecs[:,3]*10000 + dvecs[:,4]*100 + dvecs[:,5]
 
-    dates.units         = 'YYYYMMDD'
-    dates.long_name     = 'Sounding Date'
+    dates.units         = 'yyyymmdd'
+    dates.long_name     = 'Sounding date'
     dates.missing_value = np.int32(-9999)
-    times.units         = 'hhmmss'
-    times.long_name     = 'Sounding Time'
+    times.units         = 'HHMMSS'
+    times.long_name     = 'Sounding time'
     times.missing_value = np.int32(-9999)
     times.comment       = 'from scan start time in UTC'
 
@@ -101,11 +101,11 @@ def gosat(fin, ftr):
     dates[:] = dvecs[:,0]*10000 + dvecs[:,1]*100 + dvecs[:,2]
     times[:] = dvecs[:,3]*10000 + dvecs[:,4]*100 + dvecs[:,5]
 
-    dates.units         = 'YYYYMMDD'
-    dates.long_name     = 'Sounding Date'
+    dates.units         = 'yyyymmdd'
+    dates.long_name     = 'Sounding date'
     dates.missing_value = np.int32(-9999)
-    times.units         = 'hhmmss'
-    times.long_name     = 'Sounding Time'
+    times.units         = 'HHMMSS'
+    times.long_name     = 'Sounding time'
     times.missing_value = np.int32(-9999)
     times.comment       = 'from scan start time in UTC'
 

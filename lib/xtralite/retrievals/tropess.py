@@ -55,10 +55,10 @@ def build(**xlargs):
         fhead = 'TROPESS_AIRS-Aqua_L2_Standard_' + var.upper() + '_'
     elif satlo[:6] == 'cris-s':
         ardir = 'TRPSDL2' + var.upper() + 'CRSFS.' + ver[1]
-        fhead = 'TROPESS_CrIS-JPSS1_L2_Standard_' + var.upper() + '_'
+        fhead = 'TROPESS_CrIS-SNPP_L2_Standard_' + var.upper() + '_'
     elif satlo[:6] == 'cris-1':
         ardir = 'TRPSDL2' + var.upper() + 'CRS' + sat[-1] + 'FS.' + ver[1]
-        fhead = 'TROPESS_CrIS-SNPP_L2_Standard_' + var.upper() + '_'
+        fhead = 'TROPESS_CrIS-JPSS1_L2_Standard_' + var.upper() + '_'
     else:
         sys.stderr.write('*** ERROR *** Unsupported satellite (%s)\n\n' % sat)
         sys.exit(2)

@@ -55,15 +55,16 @@ def translate(fin, ftr, var):
     t0    = dtm.datetime(1970,1,1)
     dates = ncf.createVariable('date', 'i4', (RECDIM,))
     times = ncf.createVariable('time', 'i4', (RECDIM,))
+#   vectorize this
     for ir in range(len(dsecs)):
         tt = t0 + dtm.timedelta(seconds=dsecs[ir])
         dates[ir] = tt.day    + tt.month*100  + tt.year*10000
         times[ir] = tt.second + tt.minute*100 + tt.hour*10000
 
-    dates.units     = 'MMDDYY'
-    dates.long_name = 'Sounding Date'
-    times.units     = 'hhmmss'
-    times.long_name = 'Sounding Time'
+    dates.units     = 'yyyymmdd'
+    dates.long_name = 'Sounding date'
+    times.units     = 'HHMMSS'
+    times.long_name = 'Sounding time'
     times.comment   = 'from scan start time in UTC'
 
 #   4. Replace averaging kernel with product of it and pwf
