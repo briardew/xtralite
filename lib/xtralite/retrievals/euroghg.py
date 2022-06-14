@@ -19,14 +19,14 @@ import sys
 SERVE = 'https://dap.ceda.ac.uk/neodc'
 
 # leicester, uol, and ocpr are different names for same thing
-modlist  = ['besd', 'wfmd', 'imap', 'leicester', 'uol', 'ocpr']
+modlist  = ['besd', 'wfmd', 'imap', 'ocpr', 'leicester', 'uol']
 varlist  = ['co2', 'ch4']
 satlist  = ['sciam', 'gosat']
 satday0  = [dtm.datetime(2002,10, 1), dtm.datetime(2009, 4, 1)]
 # There are BESD XCO2 GOSAT retrievals somewhere that I can't find
 # Would only use for NRT
 namelist = ['besd_co2_sciam', 'wfmd_co2_sciam', 'wfmd_ch4_sciam',
-    'imap_ch4_sciam', 'ocpr_ch4_gosat']
+    'imap_ch4_sciam', 'ocpr_ch4_gosat', 'leicester_ch4_gosat', 'uol_ch4_gosat']
 
 def setup(**xlargs):
     from xtralite.retrievals import default
