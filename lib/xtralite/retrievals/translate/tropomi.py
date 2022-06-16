@@ -24,26 +24,19 @@ def _generic(ftr):
 #   Create sounding number (nsound), date and time variables
     ncf = netCDF4.Dataset(ftr, 'a')
 
-    dvec = ncf.variables['date_components'][:].astype(int)
-    date = ncf.createVariable('date', 'i4', (RECDIM,))
-    time = ncf.createVariable('time', 'i4', (RECDIM,))
-#   Have to recreate sounding number because ncks chokes on this
-    nsound = ncf.createVariable(RECDIM, 'i4', (RECDIM,))
+    dvecs = ncf.variables['date_components'][:].astype(int)
+    dates = ncf.createVariable('date', 'i4', (RECDIM,))
+    times = ncf.createVariable('time', 'i4', (RECDIM,))
 
-    date[:] = dvec[:,0]*10000 + dvec[:,1]*100 + dvec[:,2]
-    time[:] = dvec[:,3]*10000 + dvec[:,4]*100 + dvec[:,5]
-    nsound[:] = range(date.size)
+    dates[:] = dvecs[:,0]*10000 + dvecs[:,1]*100 + dvecs[:,2]
+    times[:] = dvecs[:,3]*10000 + dvecs[:,4]*100 + dvecs[:,5]
 
-    date.units = 'YYYYMMDD'
-    time.units = 'hhmmss'
-    nsound.units = '1'
-    date.long_name = 'Sounding date'
-    time.long_name = 'Sounding time'
-    nsound.long_name = 'Sounding number'
-    date.missing_value = np.int32(-9999)
-    time.missing_value = np.int32(-9999)
-    nsound.missing_value = np.int32(-9999)
-    time.comment = 'from scan start time in UTC'
+    dates.units = 'YYYYMMDD'
+    times.units = 'hhmmss'
+    dates.long_name = 'Sounding date'
+    times.long_name = 'Sounding time'
+    dates.missing_value = np.int32(-9999)
+    times.missing_value = np.int32(-9999)
 
 #   Create prior column variable (priorobs)
     apro = ncf.variables['priorpro']

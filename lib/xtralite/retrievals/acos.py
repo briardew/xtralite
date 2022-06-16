@@ -93,12 +93,13 @@ def prep(fname, name):
     ANGTHR = 80.					# Flag obs w/ ANGTHR < glint angle
     QCSNOW = True					# Apply snow quality flag?
     DOFOOT = True					# Do footprint correction?
+    DOGAIN = False					# Do gain correction?
 
 #   Name-based modifications
     if name[:5] == 'gosat':
+        QCSNOW = False					# Apply snow quality flag? (GOSAT/OCO-3 don't have it)
         DOFOOT = False					# Do footprint correction?
         DOGAIN = True					# Do gain correction?
-        QCSNOW = False					# Apply snow quality flag? (GOSAT/OCO-3 don't have it)
     if name[:4] == 'oco3':
         QCSNOW = False					# Apply snow quality flag? (GOSAT/OCO-3 don't have it)
 

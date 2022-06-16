@@ -43,17 +43,17 @@ def translate(fin, ftr):
 
 #   Assume pressures are bottoms and top is zero
     pbotin = ncf.variables['pressure'][:]
-    nsound = pbotin[:].shape[0]
-    navg   = pbotin[:].shape[1]
+    numsnd = pbotin[:].shape[0]
+    numavg = pbotin[:].shape[1]
 
 #   3. Create pressure edges of averaging kernel (peavg)
-    nedge = ncf.createDimension('nedge', navg + 1)
+    nedge = ncf.createDimension('nedge', numavg+1)
     peavg = ncf.createVariable('peavg', 'float32', (RECDIM,'nedge'),
         fill_value=FILLSING)
     peavg.units = 'hPa'
     peavg.long_name = 'Edge pressures of averaging kernel'
     peavg.missing_value = FILLSING
-    peavg[:] = np.append(pbotin, np.zeros((nsound,1)), 1)
+    peavg[:] = np.append(pbotin, np.zeros((numsnd,1)), 1)
 
     dpavg = peavg[:,:-1] - peavg[:,1:]
     dpavg.mask = pbotin.mask
@@ -68,7 +68,7 @@ def translate(fin, ftr):
     avgker[:] = np.zeros_like(dpavg)
 
     pwf = np.zeros_like(dpavg)
-    for kk in range(navg):
+    for kk in range(numavg):
         pwf[:,kk] = dpavg[:,kk] / np.sum(dpavg, axis=1)
         avgker[:] = avgker[:] + dpavg*avgkin[:,:,kk]
     pwf.mask = dpavg.mask
@@ -102,34 +102,24 @@ def translate(fin, ftr):
     uncert.long_name = 'Average column uncertainty'
     uncert.missing_value = FILLSING
     uncert[:] = 0.
-    for kk in range(navg):
+    for kk in range(numavg):
         uncert[:] = uncert[:] + np.sum(dpavg*uncpro[:,:,kk], axis=1)
 
 #   6. Create sounding_date and sounding_time variables
 #   Could change to datetime_utc
-    dvec = ncf.variables['datetime_utc'][:]
-    date = ncf.createVariable('date', 'int32', (RECDIM,),
-        fill_value=FILLINT)
-    time = ncf.createVariable('time', 'int32', (RECDIM,),
-        fill_value=FILLINT)
-    nsound = ncf.createVariable(RECDIM, 'int32', (RECDIM,),
-        fill_value=FILLINT)
+    dvecs = ncf.variables['datetime_utc'][:]
+    dates = ncf.createVariable('date', 'int32', (RECDIM,), fill_value=FILLINT)
+    times = ncf.createVariable('time', 'int32', (RECDIM,), fill_value=FILLINT)
 
-    date.units = 'yyyymmdd'
-    time.units = 'HHMMSS'
-    nsound.units = '#'
-    date.long_name = 'Sounding date'
-    time.long_name = 'Sounding time'
-    nsound.long_name = 'Sounding number'
-    date.missing_value = FILLINT
-    time.missing_value = FILLINT
-    nsound.missing_value = FILLINT
+    dates.units = 'yyyymmdd'
+    times.units = 'HHMMSS'
+    dates.long_name = 'Sounding date'
+    times.long_name = 'Sounding time'
+    dates.missing_value = FILLINT
+    times.missing_value = FILLINT
 
-    date[:] = dvec[:,0]*10000 + dvec[:,1]*100 + dvec[:,2]
-    time[:] = dvec[:,3]*10000 + dvec[:,4]*100 + dvec[:,5]
-#   nb: conflicts with nsound above
-#   Hack to sort
-    nsound[:] = time[:]
+    dates[:] = dvecs[:,0]*10000 + dvecs[:,1]*100 + dvecs[:,2]
+    times[:] = dvecs[:,3]*10000 + dvecs[:,4]*100 + dvecs[:,5]
 
     ncf.close()
 
@@ -141,8 +131,8 @@ def translate(fin, ftr):
 
 #   8. Sort
     ds = xr.open_dataset(ftmp, mask_and_scale=False)
-    ds = ds.sortby('nsound')
-    ds.to_netcdf(ftr, encoding={RECDIM:{'dtype':'int32'}})
+    ds = ds.sortby('time')
+    ds.to_netcdf(ftr)
     ds.close()
 
     pout = check_call(['rm', ftmp])

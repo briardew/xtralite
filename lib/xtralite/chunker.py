@@ -123,14 +123,15 @@ def paste6hr(date, dprv, **xlargs):
         if len(flist) > 0:
             if VERBOSE: print('Writing ' + os.path.basename(fout))
 
-            xrout = xr.open_mfdataset(flist, mask_and_scale=False)
+            xrout = xr.open_mfdataset(flist, mask_and_scale=False,
+               combine='nested', concat_dim=RECDIM)
             xrout.attrs['input_files'] = ', '.join(flist)
             xrout.attrs['history'] = 'Created on ' + dtm.datetime.now().isoformat()
             contact = 'Brad Weir <briardew@gmail.com>'
             if 'contact' in xrout.attrs:
                 contact = contact + ' / ' + xrout.attrs['contact']
             xrout.attrs['contact'] = contact
-            xrout.to_netcdf(fout, encoding={RECDIM:{'dtype':'int32'}})
+            xrout.to_netcdf(fout)
             xrout.close()
 
             if RMTMPS: pout = call(['rm', '-f', fleft, frght])
