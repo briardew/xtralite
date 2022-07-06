@@ -47,6 +47,9 @@ def translate(fin, ftr, var):
         nedge = ncf.createDimension('nedge', navg.size)
         ncf.close()
 
+#   Convert to netCDF4 to complete ncrename hack
+    pout = check_call(['ncks', '-O', '-4', ftr, ftr])
+
 #   2. Rename dimensions and variables
     pout = check_call(['ncrename', '-O',
         '-v', 'time,time_offset',
