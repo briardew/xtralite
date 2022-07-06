@@ -17,6 +17,9 @@ The `-e .` argument installs xtralite in editable mode, so changes you make
 to the code will appear live in the package. It is recommended but not
 necessary.
 
+Note that you may need to deactivate and activate your Python environment for
+it to recognize the entry point for xtralite.
+
 ## Downloading data
 To see a short summary of configuration options, run
 ```
