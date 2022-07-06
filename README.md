@@ -11,7 +11,7 @@ Most of the work involved is preparing an environment. Detailed examples are
 below ([see here](#installing-and-activating-environments)). If you are 100%
 confident you have the right environment activated, you can run
 ```
-python3 -m pip install -r requirements.txt -e .
+pip install -r requirements.txt -e .
 ```
 The `-e .` argument installs xtralite in editable mode, so changes you make
 to the code will appear live in the package. It is recommended but not
@@ -20,13 +20,13 @@ necessary.
 ## Downloading data
 To see a short summary of configuration options, run
 ```
-python3 -m xtralite --help
+xtralite --help
 ```
 For example, you can download all TROPOMI CH4 orbit files, build daily files,
 then split them up into 6-hour chunks suitable for assimilation with CoDAS by
 running
 ```
-python3 -m xtralite tropomi_ch4 --codas
+xtralite tropomi_ch4 --codas
 ```
 
 You can run these commands in any directory. By default, xtralite will place

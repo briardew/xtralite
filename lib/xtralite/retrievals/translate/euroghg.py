@@ -25,15 +25,30 @@ def translate(fin, ftr, var):
 
     varlo = var.lower()
 
-#   1. Flatten groups
-    pout = check_call(['ncks', '-O', '-G', ':', fin, ftr])
+#   1. Flatten groups, convert to netCDF3
+#   Need netCDF3 conversion to avoid ncrename bug on some systems
+    pout = check_call(['ncks', '-O', '-3', '-G', ':', fin, ftr])
+
+#   Account for difference in nedge
+#   BESD uses level_dim = nedge = navg + 1, UOL uses nedge = navg
+    try:
+        pout = check_call(['ncrename', '-O',
+            '-d', 'sounding_dim,'+RECDIM,
+            '-d', 'layer_dim,navg',
+            '-d', 'level_dim,nedge', ftr, ftr],
+            stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError:
+        pout = check_call(['ncrename', '-O',
+            '-d', 'n,'+RECDIM,
+            '-d', 'm,navg', ftr, ftr])
+
+        ncf = netCDF4.Dataset(ftr, 'a') 
+        navg  = ncf.dimensions['navg']
+        nedge = ncf.createDimension('nedge', navg.size)
+        ncf.close()
 
 #   2. Rename dimensions and variables
     pout = check_call(['ncrename', '-O',
-        '-d', '.sounding_dim,'+RECDIM,
-        '-d', '.layer_dim,navg',
-        '-d', '.n,'+RECDIM,
-        '-d', '.m,navg',
         '-v', 'time,time_offset',
         '-v', 'latitude,lat',
         '-v', 'longitude,lon',
@@ -44,18 +59,6 @@ def translate(fin, ftr, var):
         '-v', 'x'+varlo+'_quality_flag,qcflag',
         '-v', varlo+'_profile_apriori,priorpro',
         '-v', 'pressure_weight,pwf', ftr, ftr])
-
-#   Account for difference in nedge
-#   BESD uses level_dim = nedge = navg + 1, UOL uses nedge = navg
-    try:
-        pout = check_call(['ncrename', '-O',
-            '-d', 'level_dim,nedge', ftr, ftr],
-            stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError:
-        ncf = netCDF4.Dataset(ftr, 'a') 
-        navg  = ncf.dimensions['navg']
-        nedge = ncf.createDimension('nedge', navg.size)
-        ncf.close()
 
 #   3. Create date, time, and sounding variables
     ncf = netCDF4.Dataset(ftr, 'a') 
