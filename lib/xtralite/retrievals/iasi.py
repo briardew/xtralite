@@ -15,8 +15,10 @@ import datetime as dtm
 import sys
 
 SERVE = 'https://cds-espri.ipsl.fr'
+# HNO3 and other NRT products available from Eumetcast
+# Also cf acsaf.org
 
-varlist = ['co', 'ch4', 'co2', 'hcooh', 'nh3', 'so2']
+varlist = ['co', 'ch4', 'co2', 'hcooh', 'nh3', 'so2', 'hno3']
 satlist = ['metop-a', 'metop-b', 'metop-c']
 satday0 = [dtm.datetime(2007,10, 1), dtm.datetime(2012, 9, 1),
     dtm.datetime(2018,11, 1)]

@@ -2,6 +2,7 @@
 backup
 data
 scratch
+octave
 build
 dist
 env

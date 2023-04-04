@@ -11,8 +11,8 @@ xtralite: Acquire, build, and prepare constituent data for assimilation
 # Todo:
 #===============================================================================
 
-from . import chunker
-from . import retrievals
+from xtralite import chunker
+from xtralite import retrievals
 
 def build(**xlargs):
     from subprocess import PIPE, Popen
@@ -59,14 +59,14 @@ def build(**xlargs):
     xltame = dict(xlargs)
     if xlargs.get('var','*') == '*':
         sys.stderr.write('*** WARNING *** No variable specified\n\n')
-        sys.stderr.write('Looping over ' + ', '.join(obsmod.varlist) + '\n\n')
+        sys.stderr.write('Looping over: ' + ', '.join(obsmod.varlist) + '\n\n')
         for var in obsmod.varlist:
             xltame['var'] = var
             build(**xltame)
         return
     if xlargs.get('sat','*') == '*':
         sys.stderr.write('*** WARNING *** No satellite specified\n\n')
-        sys.stderr.write('Looping over ' + ', '.join(obsmod.satlist) + '\n\n')
+        sys.stderr.write('Looping over: ' + ', '.join(obsmod.satlist) + '\n\n')
         for sat in obsmod.satlist:
             xltame['sat'] = sat
             build(**xltame)

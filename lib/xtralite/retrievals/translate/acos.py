@@ -22,6 +22,10 @@ def oco(fin, ftr):
     '''Translate ACOS XCO2 OCO retrievals to xtralite'''
 #   1. Make some adjustments so chunking runs quicker
     pout = call(['cp', '-f', fin, ftr])
+#   NCKS doesn't like string variable source_files
+    pout = call(['ncks', '-O', '-x', '-v', 'source_files,' +
+        'file_index,vertex_latitude,vertex_longitude', ftr, ftr])
+
     pout = call(['ncks', '-h', '-A', '-G', ':1', '-g', 'Retrieval',
         '-v', 'psurf,surface_type', ftr, ftr])
     pout = call(['ncks', '-h', '-A', '-G', ':1', '-g', 'Retrieval',
@@ -34,8 +38,6 @@ def oco(fin, ftr):
 
 #   2. Recast sounding_id, otherwise this is very slow
     pout = call(['ncap2', '-O', '-s', 'sounding_id=int(sounding_id)', ftr, ftr])
-    pout = call(['ncks', '-O', '-3', '-C', '-x', '-v', 'source_files,' +
-        'file_index,vertex_latitude,vertex_longitude', ftr, ftr])
     pout = call(['ncks', '-O', '--mk_rec_dmn', 'sounding_id', ftr, ftr])
 
 #   3. Rename dimensions and variables
@@ -43,7 +45,6 @@ def oco(fin, ftr):
     pout = call(['ncrename', '-v', 'xco2_uncertainty,xco2_uncert', ftr])
     pout = call(['ncrename', '-v', 'xco2_averaging_kernel,xco2_avgker', ftr])
     pout = call(['ncrename', '-v', 'xco2_quality_flag,qcflag', ftr])
-
     pout = call(['ncrename', '-v', 'pressure_weight,pwf', ftr])
 
 #   4. Replace averaging kernel with product of it and pwf

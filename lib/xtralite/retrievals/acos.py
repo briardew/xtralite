@@ -35,7 +35,7 @@ def setup(**xlargs):
     sax = sat if sat != 'gosat' else 'acos'
     if len(ver) == 0:
         if sat == 'gosat': ver = 'v9r'
-        if sat == 'oco2':  ver = 'v10r'
+        if sat == 'oco2':  ver = 'v11r'
         if sat == 'oco3':  ver = 'v10.4r'
 
     xlargs['sat'] = sat
@@ -110,10 +110,10 @@ def prep(fname, name):
 
 #   Read variables we need
     ncf = netCDF4.Dataset(fname, 'a')
-    sids   = ncf.variables['sounding_id']
-    flags  = ncf.variables['xco2_quality_flag']
-    uncs   = ncf.variables['xco2_uncertainty']
-    xco2s  = ncf.variables['xco2']
+    sids  = ncf.variables['sounding_id']
+    flags = ncf.variables['xco2_quality_flag']
+    uncs  = ncf.variables['xco2_uncertainty']
+    xco2s = ncf.variables['xco2']
 
     surfts = ncf.groups['Retrieval'].variables['surface_type'][:]
     try:

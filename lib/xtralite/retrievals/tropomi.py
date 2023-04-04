@@ -19,6 +19,7 @@ TROPOMI support for xtralite
 
 import datetime as dtm
 import sys
+from os.path import expanduser
 
 modname  = 'tropomi'
 varlist  = ['ch4', 'co', 'hcho', 'so2', 'no2', 'o3']
@@ -27,9 +28,11 @@ satday0  = [dtm.datetime(2018, 4, 1)]
 namelist = [modname + '_' + vv for vv in varlist]
 
 SERVE = 'https://tropomi.gesdisc.eosdis.nasa.gov/data'
+WGETCMD = 'wget'
+#WGETCMD = expanduser('~/bin/borg-wget.sh')
 
-RMTMPS = True
-RMORBS = True
+RMTMPS = True				# remove temporary files?
+RMORBS = True				# remove orbit files?
 
 RECDIM = 'sounding'			# shares name with nsound from chunk format
 FTAIL  = '.nc'
@@ -51,9 +54,8 @@ def setup(**xlargs):
 def build(**xlargs):
     from subprocess import call
     from os import remove, rmdir
-    from os.path import expanduser, isfile
+    from os.path import isfile
     from glob import glob
-    from xtralite import coarsen
     import numpy as np
     import xarray as xr
     import netCDF4
@@ -68,15 +70,23 @@ def build(**xlargs):
     dnames    = ['layer']
     vnamesaux = ['time', 'delta_time', 'ground_pixel']
     vnames0d  = []
-    vnames1d  = ['latitude', 'longitude', 'surface_pressure', 'qa_value',
-        'surface_classification', 'solar_zenith_angle']
+    vnames1d  = ['latitude', 'longitude', 'solar_zenith_angle',
+        'surface_pressure', 'qa_value', 'surface_classification',
+        'processing_quality_flags']
     vnames2d  = []
 
 #   Gas-dependent variables (move to a function/yaml?)
 #   ---
+#   Defaults
+    LANDONLY = False			# Land only?
+    QAMIN = 0.50			# Minimum qa_value to accept
+    CLMAX = 0.10			# Maximum value of cloud variable
+    VCLOUD = 'cloud_fraction_crb'	# Cloud variable
+    VCHECK = ''				# Variable whose mask we use
+
     if var.lower() == 'ch4':
-        QAMIN = 0.50					# Minimum qa_value to accept
-        CLMAX = float('nan')				# Maximum value of cloud variable
+        LANDONLY = True
+        CLMAX = float('nan')
         VCLOUD = ''
         VCHECK = 'methane_mixing_ratio_bias_corrected'
         dnames = dnames + ['level']
@@ -87,19 +97,15 @@ def build(**xlargs):
             'methane_profile_apriori', 'altitude_levels', 'dry_air_subcolumns']
 
     if var.lower() == 'co':
-        QAMIN = 0.50					# Minimum qa_value to accept
-        CLMAX = 100.0					# Maximum value of cloud variable
-        VCLOUD = 'height_scattering_layer'
+        CLMAX = float('nan')
+        VCLOUD = ''
         VCHECK = 'carbonmonoxide_total_column'
-        vnames1d = vnames1d + ['height_scattering_layer',
+        vnames1d = vnames1d + ['surface_altitude',
             'carbonmonoxide_total_column',
             'carbonmonoxide_total_column_precision']
         vnames2d = vnames2d + ['column_averaging_kernel']
 
     if var.lower() == 'hcho':
-        QAMIN = 0.50					# Minimum qa_value to accept
-        CLMAX = 0.10					# Maximum value of cloud variable
-        VCLOUD = 'cloud_fraction_crb'
         VCHECK = 'formaldehyde_tropospheric_vertical_column'
         vnames0d = vnames0d + ['tm5_constant_a', 'tm5_constant_b']
         vnames1d = vnames1d + ['cloud_fraction_crb',
@@ -110,9 +116,6 @@ def build(**xlargs):
             'formaldehyde_profile_apriori']
 
     if var.lower() == 'so2':
-        QAMIN = 0.50					# Minimum qa_value to accept
-        CLMAX = 0.10					# Maximum value of cloud variable
-        VCLOUD = 'cloud_fraction_crb'
         VCHECK = 'sulfurdioxide_total_vertical_column'
         vnames0d = vnames0d + ['tm5_constant_a', 'tm5_constant_b']
         vnames1d = vnames1d + ['cloud_fraction_crb',
@@ -123,9 +126,6 @@ def build(**xlargs):
             'sulfurdioxide_profile_apriori']
 
     if var.lower() == 'no2':
-        QAMIN = 0.50					# Minimum qa_value to accept
-        CLMAX = 0.10					# Maximum value of cloud variable
-        VCLOUD = 'cloud_fraction_crb'
         VCHECK = 'nitrogendioxide_summed_total_column'
         vnames0d = vnames0d + ['tm5_constant_a', 'tm5_constant_b']
         vnames1d = vnames1d + ['cloud_fraction_crb',
@@ -135,9 +135,6 @@ def build(**xlargs):
         vnames2d = vnames2d + ['averaging_kernel']
 
     if var.lower() == 'o3':
-        QAMIN = 0.50					# Minimum qa_value to accept
-        CLMAX = 0.10					# Maximum value of cloud variable
-        VCLOUD = 'cloud_fraction_crb'
         VCHECK = 'ozone_total_vertical_column'
         dnames = dnames + ['level']
         vnames1d = vnames1d + ['cloud_fraction_crb',
@@ -147,11 +144,6 @@ def build(**xlargs):
             'pressure_grid']
 
     vnames = vnamesaux + vnames0d + vnames1d + vnames2d
-
-    NSTX = 1				# Averaging stencil of in scanline direction (odd recomm.)
-    NSTY = 1				# Averaging stencil of in pixel    direction (odd recomm.)
-    coarsen.NSTX = NSTX
-    coarsen.NSTY = NSTY
 
 #   Determine timespan
     jdbeg = xlargs.get('jdbeg', min(satday0))
@@ -213,13 +205,13 @@ def build(**xlargs):
 
         pout = call(['mkdir', '-p', DORBIT + '/Y' + yrnow])
         for mm in range(-1,2):
-            pout = call(['wget', '--load-cookies', expanduser('~/.urs_cookies'),
-                '--save-cookies', expanduser('~/.urs_cookies'),
-                '--auth-no-challenge=on', '--keep-session-cookies',
-                '--content-disposition'] + wgargs +
-                [SERVE + '/' + ardir + '/' +
-                (jdnow + dtm.timedelta(mm)).strftime('%Y/%j') + '/',
-                '-A', fwild, '-P', DORBIT + '/Y' + yrnow])
+            pout = call(WGETCMD + ' --load-cookies ~/.urs_cookies ' +
+                '--save-cookies ~/.urs_cookies ' +
+                '--auth-no-challenge=on --keep-session-cookies ' +
+                '--content-disposition ' + ' '.join(wgargs) + ' ' +
+                SERVE + '/' + ardir + '/' + 
+                (jdnow + dtm.timedelta(mm)).strftime('%Y/%j') + '/' +
+                ' -A "' + fwild + '" -P ' + DORBIT + '/Y' + yrnow, shell=True)
 
 #       Convert orbit files into daily lite files
 #       ---
@@ -270,7 +262,7 @@ def build(**xlargs):
             if npix != vpix.size: raise
 
 #           Some annoying logic to deal with different delta_time dimensions
-#           HCHO and SO2 are unique with a delta_time that has a ground_pixel
+#           HCHO and SO2 are unique with delta_time that has a ground_pixel
 #           dimension and missing time_utc values
             dfix = delt[:].data[:,0] if (delt.shape == obchk.shape) else delt[:].data
             tscn = np.array([TIME0 + dtm.timedelta(seconds=int(time[:].data[()])) +
@@ -280,18 +272,21 @@ def build(**xlargs):
 
 #           Decide who to keep
             qause = ~np.less(qa, QAMIN)
-            obuse = (~obchk[:].mask & qause).reshape(obchk.size,) & tuse
-            mask  = (stype[:] % 2).reshape(stype.size,)
+            obuse = np.logical_and(~obchk[:].mask, qause).reshape(obchk.size,)
+            obuse = np.logical_and(tuse, obuse)
+            mask  = (stype[:] % 2).reshape(obchk.size,)
+
+            if LANDONLY: obuse = np.logical_and(obuse, mask == 0)
 
 #           Add cloud flags
             if 0 < len(VCLOUD):
                 cloud = ncf1.variables[VCLOUD]
-                cluse = np.less(cloud, CLMAX)
-                obuse = cluse.reshape(obchk.size,) & obuse
+                cluse = np.less(cloud, CLMAX).reshape(obchk.size,)
+                obuse = np.logical_and(obuse, cluse)
 
 #           Create sounding dimension and variable
 #           NB: Specifying fill_value causes xarray to muck up data type
-            nsound = coarsen.avg2d(obuse, npix, obuse, mask).size
+            nsound = obuse[obuse].size
 #           sdim = ncf2.createDimension(RECDIM, size=None)
             sdim = ncf2.createDimension(RECDIM, size=nsound)
             snum = ncf2.createVariable(RECDIM, 'int32', (RECDIM,))
@@ -301,9 +296,10 @@ def build(**xlargs):
             sound0  = sound0 + nsound
 
 #           Compute time for averaged sounding
-            tdel = coarsen.avg2d(np.array([dd.total_seconds()
-                for dd in (tsnd - tsnd[0])]), npix, obuse, mask)
-            tavg = np.array([tsnd[0] + dtm.timedelta(seconds=ss) for ss in tdel])
+            tdel = np.array([dd.total_seconds()
+                for dd in (tsnd[obuse] - tsnd[0])])
+            tavg = np.array([tsnd[0] + dtm.timedelta(seconds=ss)
+                for ss in tdel])
 
 #           Create ndate dimension and date variable
             tdim = ncf2.createDimension('ndate', size=7)
@@ -332,7 +328,7 @@ def build(**xlargs):
             foot.units = vpix.units
             foot.long_name = vpix.long_name
             foot.comment = vpix.comment
-            foot[:] = coarsen.avg2d(np.tile(vpix, nscn), npix, obuse, mask)
+            foot[:] = np.tile(vpix, nscn)[obuse]
 
 #           Read, reshape, and write 1D variables
             for vv in vnames1d:
@@ -341,7 +337,7 @@ def build(**xlargs):
                     fill_value=var1._FillValue)
                 var2.setncatts(var1.__dict__)
                 var1rs  = var1[:].reshape(var1[:].size,)
-                var2[:] = coarsen.avg2d(var1rs[:].data, npix, obuse, mask)
+                var2[:] = var1rs[:].data[obuse]
 
 #           Read, reshape, and write 2D variables
             for vv in vnames2d:
@@ -351,7 +347,7 @@ def build(**xlargs):
                 var2.setncatts(var1.__dict__)
                 var1rs  = var1[:].reshape(var1[:,:,0].size, var1[0,0,:].size)
                 for kk in range(np.size(var1rs,axis=1)):
-                    var2[:,kk] = coarsen.avg2d(var1rs[:,kk], npix, obuse, mask)
+                    var2[:,kk] = var1rs[obuse,kk]
 
 #           Average sounding locations in spherical coordinates to account for
 #           longitudinal periodicity
@@ -363,9 +359,9 @@ def build(**xlargs):
             yy = np.sin(np.deg2rad(lonin[:].data)) * np.cos(np.deg2rad(latin[:].data))
             zz =                                     np.sin(np.deg2rad(latin[:].data))
 
-            xxavg = coarsen.avg2d(xx.reshape(xx.size,), npix, obuse, mask)
-            yyavg = coarsen.avg2d(yy.reshape(yy.size,), npix, obuse, mask)
-            zzavg = coarsen.avg2d(zz.reshape(zz.size,), npix, obuse, mask)
+            xxavg = xx.reshape(xx.size,)[obuse]
+            yyavg = yy.reshape(yy.size,)[obuse]
+            zzavg = zz.reshape(zz.size,)[obuse]
             rravg = np.sqrt(xxavg**2 + yyavg**2 + zzavg**2)
 
             latout = ncf2.variables['latitude']
@@ -373,6 +369,12 @@ def build(**xlargs):
 
             latout[:] = np.rad2deg(np.arcsin(zzavg/rravg))
             lonout[:] = np.rad2deg(np.arctan2(yyavg, xxavg))
+
+#           Someone always has to be special
+#           *** FIXME *** Check when to turn this off *** FIXME ***
+            if var.lower() == 'co':
+                avgker = ncf2.variables['column_averaging_kernel']
+                avgker[:] = avgker[:]/1000.
 
             ncf1.close()
             ncf2.close()
@@ -387,10 +389,6 @@ def build(**xlargs):
             pout = call(['mkdir', '-p', DLITE + '/Y' + yrnow])
 
 #           Concatenate, then convert back to netCDF4, two ways:
-#           a) ncrcat: slow, doesn't need xarray
-#           pout = call(['ncrcat', '-O', '--no_tmp_fl'] + fcat + [ftmp])
-#           pout = call(['ncks', '-O', '-4', ftmp, ftmp])
-#           b) xarray: better
             dtmp = xr.open_mfdataset(fcat, mask_and_scale=False)
             dtmp.to_netcdf(ftmp, encoding={RECDIM:{'dtype':'int32'}})
             dtmp.close()
@@ -411,12 +409,12 @@ def build(**xlargs):
             sids[:] = (duse[:,3]*10**10 + duse[:,4]*10**8 +
                        duse[:,5]*10**6  + duse[:,6]*10**3 + fuse)
 
-            delattr(ncf, 'history_of_appended_files')
+            if hasattr(ncf, 'history_of_appended_files'):
+                delattr(ncf, 'history_of_appended_files')
 
             ncf.close()
 
 #           Compress and overwrite history
-#           would be nice to replace these with python netCDF4 calls
             pout = call(['ncks', '-O', '-L', '9', ftmp, fout])
             pout = call(['ncatted', '-h', '-O', '-a', 'history,global,o,c,' +
                 'Created on ' + dtm.datetime.now().isoformat(), fout])

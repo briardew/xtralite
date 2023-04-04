@@ -46,7 +46,8 @@ def translate(fin, ftr):
     numsnd = pbotin[:].shape[0]
     numavg = pbotin[:].shape[1]
 
-#   3. Create pressure edges of averaging kernel (peavg)
+#   3. Create pressure edges of averaging kernel (peavg), pressure
+#   thickness (dpavg), and pressure weighting function (pwf)
     nedge = ncf.createDimension('nedge', numavg+1)
     peavg = ncf.createVariable('peavg', 'float32', (RECDIM,'nedge'),
         fill_value=FILLSING)
@@ -58,6 +59,11 @@ def translate(fin, ftr):
     dpavg = peavg[:,:-1] - peavg[:,1:]
     dpavg.mask = pbotin.mask
 
+    pwf = np.zeros_like(dpavg)
+    for kk in range(numavg):
+        pwf[:,kk] = dpavg[:,kk] / np.sum(dpavg, axis=1)
+    pwf.mask = dpavg.mask
+
 #   4. Create column averaging kernel (avgker)
     avgkin = ncf.variables['averaging_kernel'][:]
     avgker = ncf.createVariable('avgker', 'float32', (RECDIM,'navg'),
@@ -67,15 +73,11 @@ def translate(fin, ftr):
     avgker.missing_value = FILLSING
     avgker[:] = np.zeros_like(dpavg)
 
-    pwf = np.zeros_like(dpavg)
-    for kk in range(numavg):
-        pwf[:,kk] = dpavg[:,kk] / np.sum(dpavg, axis=1)
-        avgker[:] = avgker[:] + dpavg*avgkin[:,:,kk]
-    pwf.mask = dpavg.mask
-    avgker[:].mask = dpavg.mask
-
 #   Check averaging kernel transpose
 #   Still need to account for log space
+    for kk in range(numavg):
+        avgker[:] = avgker[:] + pwf*obspro*avgkin[:,:,kk]
+    avgker[:].mask = pwf.mask
 
 #   5. Create column obs (obs), a priori (priorpro), and
 #   uncertainty (uncert)
@@ -103,7 +105,7 @@ def translate(fin, ftr):
     uncert.missing_value = FILLSING
     uncert[:] = 0.
     for kk in range(numavg):
-        uncert[:] = uncert[:] + np.sum(dpavg*uncpro[:,:,kk], axis=1)
+        uncert[:] = uncert[:] + np.sum(pwf*uncpro[:,:,kk], axis=1)
 
 #   6. Create sounding_date and sounding_time variables
 #   Could change to datetime_utc

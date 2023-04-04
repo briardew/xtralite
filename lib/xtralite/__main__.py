@@ -12,11 +12,10 @@ Entry point for xtralite module
 # Todo:
 #===============================================================================
 
-from argparse import ArgumentParser
-
 import sys
 import datetime as dtm
-import xtralite as xl
+from argparse import ArgumentParser
+from xtralite import retrievals, build
 
 # Parse command-line options
 class XLParser(ArgumentParser):
@@ -28,7 +27,7 @@ class XLParser(ArgumentParser):
 # Read arguments
 parser = XLParser(description=__doc__,
     usage='xtralite name [options]',
-    epilog='supported names: ' + ' '.join(xl.retrievals.namelist))
+    epilog='supported names: ' + ', '.join(retrievals.namelist))
 parser.add_argument('name', help='name of products to build ' +
     '(see list below)')
 parser.add_argument('--beg', help='begin date (default: %(default)s)',
@@ -47,4 +46,4 @@ xlargs = vars(parser.parse_args())
 
 if xlargs['head'] is None: xlargs.pop('head')
 
-sys.exit(xl.build(**xlargs))
+sys.exit(build(**xlargs))

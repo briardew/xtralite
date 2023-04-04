@@ -12,9 +12,10 @@ Default support for xtralite
 # * Add some warnings
 #===============================================================================
 
+from subprocess import call
+
 def translate(fin, ftr):
     '''Translate input format to xtralite'''
-    from subprocess import call
     pout = call(['cp', '-f', fin, ftr])
 
     return None
@@ -71,7 +72,7 @@ def setup(**xlargs):
     if '*' in fhead:
         xlargs['fhead']  = mod + '_' + var + '_' + sat + '_' + ver + '.'
     if '*' in fhout:
-        xlargs['fhout']  = xlargs['fhead']
+        xlargs['fhout']  = mod + '_' + var + '_' + sat + '_' + ver + '.'
 
     if 'ftail'  not in xlargs: xlargs['ftail']  = '.nc'
     if 'yrdigs' not in xlargs: xlargs['yrdigs'] = 4
@@ -82,7 +83,8 @@ def setup(**xlargs):
 #   Set wget arguments
     wgargs = ['-r', '-np', '-nd', '-e', 'robots=off']
     if not xlargs.get('repro',False):
-        wgargs = wgargs + ['-N']
+#       wgargs = wgargs + ['-N']
+        wgargs = wgargs + ['-nc']
     if xlargs.get('log',None) is not None:
         wgargs = wgargs + ['-nv', '-a', xlargs['log']]
     xlargs['wgargs']  = wgargs

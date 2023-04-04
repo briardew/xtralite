@@ -9,13 +9,14 @@ Convert retrievals into xtralite and chunk for assimilation with CoDAS
 # 2022/04/26	Initial commit
 #
 # Todo:
+# * Improve filename handing to reduce/simplify calls to fhead, etc.
 #===============================================================================
 
 from glob import glob
 from subprocess import call
+from os import path
 import datetime as dtm
 import numpy as np
-import netCDF4, os
 import xarray as xr
 
 DEBUG   = False
@@ -32,40 +33,39 @@ __DIROUT  = ''
 
 #===============================================================================
 def split3hr(fin, date, **xlargs):
-    '''Split full-day netCDF file into 3-hour chunks'''
+    '''Split daily file into 3-hour chunks'''
     LENHR = 10000
 
     TNAME  = xlargs.get('tname',  TNAMEDEF)
     RECDIM = xlargs.get('recdim', RECDIMDEF)
-    FTAIL  = xlargs.get('ftail',  FTAILDEF)
+    FTOUT  = xlargs.get('ftout',  FTAILDEF)
     FHOUT  = xlargs['fhout']
 
-    if VERBOSE: print('Splitting   ' + os.path.basename(fin))
+    if VERBOSE: print('Splitting   ' + path.basename(fin))
 
 #   1. Read time data
-    ncfile = netCDF4.Dataset(fin, 'r') 
-    itimes = ncfile.variables[TNAME][:]
-    ncfile.close()
+    ds = xr.open_dataset(fin) 
+    itimes = ds[TNAME].values
+    ds.close()
 
-    nrec   = len(itimes)
+    nrec = len(itimes)
     ihours = itimes//LENHR
     chunks = np.zeros([8, 4], dtype=int)
 
 #   2. Compute indices to split at
     nF = -1
     for ic in range(8):
+        n0 = nF + 1
         it0 = 3*ic
         itF = 3*(ic + 1)
 
-        n0 = nF + 1
-
-#       assume failure
+#       Assume failure
         chunks[ic,:] = [it0, itF, -1, -1]
 
         if nrec == n0: continue				# no records left to read?
         if itF <= ihours[n0]: continue			# no records in the interval?
 
-#       success! add em up
+#       Success! add em up
         nF = n0
         while nF < nrec-1:
             if itF <= ihours[nF+1]: break
@@ -80,15 +80,15 @@ def split3hr(fin, date, **xlargs):
         vals = chunks[ic,:]
         hour = str(vals[0]).zfill(2)
         ftmp = (xlargs['chunk'] + '/' + FHOUT + date + '_' + hour + 'z' +
-            FTAIL + '.bit')
-        if int(vals[2]) != -1:
-            if VERBOSE: print('Writing ' + os.path.basename(ftmp))
+            '.bit' + FTOUT)
 
-            argc = RECDIM + ',' + str(vals[2]) + ',' + str(vals[3])
-            if DEBUG: print(argc)
-            pout = call(['ncks', '-h', '-O', '-d', argc, fin, ftmp])
-            pout = call(['ncks', '-h', '-O', '--mk_rec_dmn',
-                RECDIM, ftmp, ftmp])
+        if int(vals[2]) != -1:
+            if VERBOSE: print('Writing ' + path.basename(ftmp))
+
+            ds = xr.open_dataset(fin)
+            ds = ds.isel({RECDIM:range(vals[2],vals[3]+1)})
+            ds.to_netcdf(ftmp)
+            ds.close()
 
     if RMTMPS: pout = call(['rm', fin])
 
@@ -101,7 +101,7 @@ def paste6hr(date, dprv, **xlargs):
 
     TNAME  = xlargs.get('tname',  TNAMEDEF)
     RECDIM = xlargs.get('recdim', RECDIMDEF)
-    FTAIL  = xlargs.get('ftail',  FTAILDEF)
+    FTOUT  = xlargs.get('ftout',  FTAILDEF)
     FHOUT  = xlargs['fhout']
 
     if VERBOSE: print('---')
@@ -112,93 +112,50 @@ def paste6hr(date, dprv, **xlargs):
         dleft = jleft.strftime('%Y%m%d_%H') + 'z'
         drght = jrght.strftime('%Y%m%d_%H') + 'z'
 
-        fleft = xlargs['chunk'] + '/' + FHOUT + dleft + FTAIL + '.bit'
-        frght = xlargs['chunk'] + '/' + FHOUT + drght + FTAIL + '.bit'
-        fout  = __DIROUT        + '/' + FHOUT + drght + FTAIL
+        fleft = path.join(xlargs['chunk'], FHOUT + dleft + '.bit' + FTOUT)
+        frght = path.join(xlargs['chunk'], FHOUT + drght + '.bit' + FTOUT)
+        fout  = path.join(__DIROUT,        FHOUT + drght          + FTOUT)
 
         flist = []
-        if os.path.isfile(fleft): flist = flist + [fleft]
-        if os.path.isfile(frght): flist = flist + [frght]
+        if path.isfile(fleft): flist = flist + [fleft]
+        if path.isfile(frght): flist = flist + [frght]
 
-        if len(flist) > 0:
-            if VERBOSE: print('Writing ' + os.path.basename(fout))
+        if len(flist) == 0: continue
 
-            xrout = xr.open_mfdataset(flist, mask_and_scale=False,
+#       Build input file list
+        inlist = []
+        for ff in flist:
+            ds = xr.open_dataset(ff)
+            for xx in ds.attrs['input_files'].split(', '):
+                if xx not in inlist: inlist.append(xx)
+            ds.close()
+        input_files = ', '.join(inlist)
+
+#       Only overwrite existing files if we are reprocessing
+        if not path.isfile(fout) or xlargs.get('repro',False):
+            if VERBOSE: print('Writing ' + path.basename(fout))
+
+            ds = xr.open_mfdataset(flist, mask_and_scale=False,
                combine='nested', concat_dim=RECDIM)
-            xrout.attrs['input_files'] = ', '.join(flist)
-            xrout.attrs['history'] = 'Created on ' + dtm.datetime.now().isoformat()
+            ds.attrs['input_files'] = input_files
+            ds.attrs['history'] = 'Created on ' + dtm.datetime.now().isoformat()
             contact = 'Brad Weir <briardew@gmail.com>'
-            if 'contact' in xrout.attrs:
-                contact = contact + ' / ' + xrout.attrs['contact']
-            xrout.attrs['contact'] = contact
-            xrout.to_netcdf(fout)
-            xrout.close()
+            if 'contact' in ds.attrs:
+                contact = contact + ' / ' + ds.attrs['contact']
+            ds.attrs['contact'] = contact
+            ds.to_netcdf(fout)
+            ds.close()
 
-            if RMTMPS: pout = call(['rm', '-f', fleft, frght])
-
-##   *** The logic of this could be much cleaner ***
-##   a. Treat chunk that straddles two days differently
-#    fleft = xlargs['chunk'] + '/' + FHOUT + dprv + '_21z' + FTAIL + '.bit'
-#    frght = xlargs['chunk'] + '/' + FHOUT + date + '_00z' + FTAIL + '.bit'
-#    fout  = __DIROUT + '/' + FHOUT + date + '_00z' + FTAIL
-#
-#    if os.path.isfile(fleft) and os.path.isfile(frght):
-#        pout = call(['ncrcat', '-h', '-O', fleft, frght, fout])
-##       Indicate combination of two days in input filenames
-#        ncin  = netCDF4.Dataset(frght, 'r') 
-#        ncout = netCDF4.Dataset(fout,  'a') 
-#        ncout.input_files = ncout.input_files + ', ' + ncin.input_files
-#        ncin.close()
-#        ncout.close()
-#    elif os.path.isfile(fleft):
-#        pout = call(['cp', fleft, fout])
-#    elif os.path.isfile(frght):
-#        pout = call(['cp', frght, fout])
-#
-#    if VERBOSE: print('---')
-#    if os.path.isfile(fleft) or os.path.isfile(frght):
-#        if RMTMPS:  pout = call(['rm', '-f', fleft, frght])
-#        if VERBOSE: print('Writing ' + os.path.basename(fout))
-#
-#        ncout = netCDF4.Dataset(fout, 'a')
-#        ncout.history = 'Created on ' + dtm.datetime.now().isoformat()
-#        contact = 'Brad Weir <briardew@gmail.com>'
-#        if hasattr(ncout, 'contact'): contact = contact + ' / ' + ncout.contact
-#        ncout.contact = contact
-#
-##   b. Rest of the chunks contained in single day
-#    for nh in [3, 9, 15]:
-#        fleft = (xlargs['chunk'] + '/' + FHOUT + date + '_' +
-#                 str(nh  ).zfill(2) + 'z' + FTAIL + '.bit')
-#        frght = (xlargs['chunk'] + '/' + FHOUT + date + '_' +
-#                 str(nh+3).zfill(2) + 'z' + FTAIL + '.bit')
-#        fout  = (__DIROUT        + '/' + FHOUT + date + '_' +
-#                 str(nh+3).zfill(2) + 'z' + FTAIL)
-#
-#        if os.path.isfile(fleft) and os.path.isfile(frght):
-#            pout = call(['ncrcat', '-h', '-O', fleft, frght, fout])
-#        elif os.path.isfile(fleft):
-#            pout = call(['cp', fleft, fout])
-#        elif os.path.isfile(frght):
-#            pout = call(['cp', frght, fout])
-#
-#        if os.path.isfile(fleft) or os.path.isfile(frght):
-#            if RMTMPS:  pout = call(['rm', '-f', fleft, frght])
-#            if VERBOSE: print('Writing ' + os.path.basename(fout))
-#
-#            ncout = netCDF4.Dataset(fout, 'a')
-#            ncout.history = 'Created on ' + dtm.datetime.now().isoformat()
-#            contact = 'Brad Weir <briardew@gmail.com>'
-#            if hasattr(ncout, 'contact'): contact = contact + ' / ' + ncout.contact
-#            ncout.contact = contact
+        if RMTMPS: pout = call(['rm', '-f', fleft, frght])
 
 #===============================================================================
 def chunk(**xlargs):
     '''Run chunker over the specified days'''
 
     FHEAD = xlargs['fhead']
-    FHOUT = xlargs['fhout']
     FTAIL = xlargs.get('ftail', FTAILDEF)
+    FHOUT = xlargs['fhout']
+    FTOUT = xlargs.get('ftout', FTAILDEF)
     trfun = xlargs['trfun']
 
     jdnow = xlargs['jdbeg']
@@ -220,30 +177,29 @@ def chunk(**xlargs):
     __DIROUT = xlargs['chunk'] + '/Y' + str(jdnow.year)
 
     flist = glob(__DIRIN  + '/' + FHEAD + dget + '*' + FTAIL)
-    fouts = glob(__DIROUT + '/' + FHOUT + dnow + '*' + FTAIL)
-    ftr   = xlargs['chunk'] + '/' + FHOUT + dnow + FTAIL + '.trans'
-
-#   Only overwrite existing files if we are reprocessing
-    if not xlargs.get('repro',False) and 0 < len(fouts): return
+    ftr   = xlargs['chunk'] + '/' + FHOUT + dnow + '.trans' + FTOUT
 
     if 0 < len(flist):
         if VERBOSE: print('---')
 
 #       Use newest matching file for input (may be different versions)
-        fin = sorted(flist, key=os.path.getmtime)[-1]
+        fin = sorted(flist, key=path.getmtime)[-1]
 
-        print('Processing  ' + os.path.basename(fin))
+        print('Processing  ' + path.basename(fin))
         pout = call(['mkdir', '-p', __DIROUT])
 
 #       Convert data to standard format
         if VERBOSE:
-            print('Translating ' + os.path.basename(fin))
-            print('         to ' + os.path.basename(ftr))
+            print('Translating ' + path.basename(fin))
+            print('         to ' + path.basename(ftr))
         trfun(fin, ftr)
 
 #       Set input filename
-        pout = call(['ncatted', '-h', '-O', '-a', 'input_files,global,o,c,' +
-                     os.path.basename(fin), ftr])
+        with xr.open_dataset(ftr) as ds:
+            ds.load()
+        ds.attrs['input_files'] = path.basename(fin)
+        ds.to_netcdf(ftr)
+        ds.close()
 
 #       Split day into 3-hour bits
         split3hr(ftr, dnow, **xlargs)

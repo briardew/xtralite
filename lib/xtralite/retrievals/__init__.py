@@ -19,6 +19,7 @@ namedict = {}
 for rr in __all__:
     exec('from . import %s' % rr)
     exec('namedict["%s"] = %s.namelist' % (rr,rr))
+del(rr)
 namelist = [value for key in namedict for value in namedict[key]]
 
 # Utility to get appropriate module
