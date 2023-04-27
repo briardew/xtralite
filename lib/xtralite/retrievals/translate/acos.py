@@ -11,119 +11,100 @@ Translate ACOS retrievals to xtralite
 # Todo:
 #===============================================================================
 
-import datetime as dtm
 import numpy as np
-import netCDF4
-from subprocess import call
+#import xarray as xr
+from xtralite.patches import xarray as xr
 
-RECDIM = 'sounding_id'
+def _generic(dd):
+#   Rename dims and vars
+    dd = dd.rename({'xco2':'xco2_final', 'xco2_uncertainty':'xco2_uncert',
+        'xco2_averaging_kernel':'xco2_avgker', 'xco2_quality_flag':'qcflag',
+        'pressure_weight':'pwf'})
 
-def oco(fin, ftr):
-    '''Translate ACOS XCO2 OCO retrievals to xtralite'''
-#   1. Make some adjustments so chunking runs quicker
-    pout = call(['cp', '-f', fin, ftr])
-#   NCKS doesn't like string variable source_files
-    pout = call(['ncks', '-O', '-x', '-v', 'source_files,' +
-        'file_index,vertex_latitude,vertex_longitude', ftr, ftr])
+#   Do anything to sounding_id and levels dims?
+#   dd['sounding_id'] = dd['sounding_id'].astype('int32')
 
-    pout = call(['ncks', '-h', '-A', '-G', ':1', '-g', 'Retrieval',
-        '-v', 'psurf,surface_type', ftr, ftr])
-    pout = call(['ncks', '-h', '-A', '-G', ':1', '-g', 'Retrieval',
-        '-v', 'aod_dust,aod_bc,aod_oc,aod_seasalt,aod_sulfate,' +
-        'aod_strataer,aod_water,aod_ice,aod_total,tcwv,xco2_raw', ftr, ftr])
-    pout = call(['ncks', '-h', '-A', '-G', ':1', '-g', 'Sounding',
-        '-v', 'operation_mode,footprint,glint_angle', ftr, ftr])
-    pout = call(['ncks', '-h', '-A', '-G', ':1', '-g', 'Meteorology',
-        '-v', 'psurf_apriori', ftr, ftr])
+#   Create date and time vars
+    dvec = dd['date'].values.astype('int32')
+    nsound = dd.sizes['sounding_id']
 
-#   2. Recast sounding_id, otherwise this is very slow
-    pout = call(['ncap2', '-O', '-s', 'sounding_id=int(sounding_id)', ftr, ftr])
-    pout = call(['ncks', '-O', '--mk_rec_dmn', 'sounding_id', ftr, ftr])
+    date = np.zeros(nsound, dtype='int32')
+    time = np.zeros(nsound, dtype='int32')
 
-#   3. Rename dimensions and variables
-    pout = call(['ncrename', '-v', 'xco2,xco2_final', ftr])
-    pout = call(['ncrename', '-v', 'xco2_uncertainty,xco2_uncert', ftr])
-    pout = call(['ncrename', '-v', 'xco2_averaging_kernel,xco2_avgker', ftr])
-    pout = call(['ncrename', '-v', 'xco2_quality_flag,qcflag', ftr])
-    pout = call(['ncrename', '-v', 'pressure_weight,pwf', ftr])
+    date = dvec[:,0]*10000 + dvec[:,1]*100 + dvec[:,2]
+    time = dvec[:,3]*10000 + dvec[:,4]*100 + dvec[:,5]
 
-#   4. Replace averaging kernel with product of it and pwf
-    ncf = netCDF4.Dataset(ftr, 'a') 
+    dd = dd.assign(sounding_date=('sounding_id', date, {'units':'YYYYMMDD',
+        'long_name':'sounding date', 'missing_value':np.int32(-9999)}))
+    dd = dd.assign(sounding_time=('sounding_id', time, {'units':'hhmmss',
+        'long_name':'sounding time', 'missing_value':np.int32(-9999)}))
 
-    pwf    = ncf.variables['pwf']
-    avgker = ncf.variables['xco2_avgker']
-    avgker[:] = avgker[:]*pwf[:]
+#   Replace averaging kernel with product of it and pwf
+    pwf    = dd['pwf']
+    avgker = dd['xco2_avgker']
+    avgker.values = avgker.values*pwf.values
 
-#   5. Create sounding_date and sounding_time variables
-    dvecs = ncf.variables['date'][:].astype(int)
+#   Drop common vars
+    dd = dd.drop_vars(('bands', 'date', 'time', 'solar_zenith_angle',
+        'sensor_zenith_angle', 'xco2_qf_bitflag', 'source_files',
+        'file_index'))
 
-    dates = ncf.createVariable('sounding_date', 'i4', (RECDIM,))
-    times = ncf.createVariable('sounding_time', 'i4', (RECDIM,))
-
-    dates[:] = dvecs[:,0]*10000 + dvecs[:,1]*100 + dvecs[:,2]
-    times[:] = dvecs[:,3]*10000 + dvecs[:,4]*100 + dvecs[:,5]
-
-    dates.units         = 'yyyymmdd'
-    dates.long_name     = 'Sounding date'
-    dates.missing_value = np.int32(-9999)
-    times.units         = 'HHMMSS'
-    times.long_name     = 'Sounding time'
-    times.missing_value = np.int32(-9999)
-    times.comment       = 'from scan start time in UTC'
-
-    ncf.close()
-
-    return None
+    return dd
 
 def gosat(fin, ftr):
     '''Translate ACOS XCO2 GOSAT retrievals to xtralite'''
-#   1. Flatten groups and rename dimensions and variables
-    pout = call(['ncks', '-O', '-G', ':', fin, ftr])
-    pout = call(['ncrename', '-v', 'xco2,xco2_final', ftr])
-    pout = call(['ncrename', '-v', 'xco2_uncertainty,xco2_uncert', ftr])
-    pout = call(['ncrename', '-v', 'xco2_averaging_kernel,xco2_avgker', ftr])
-    pout = call(['ncrename', '-v', 'xco2_quality_flag,qcflag', ftr])
 
-    pout = call(['ncrename', '-v', 'pressure_weight,pwf', ftr])
+#   Open and add needed group vars
+    dd = xr.open_dataset(fin)
+    ddret = xr.open_dataset(fin, **{'group':'Retrieval'})
+    ddsnd = xr.open_dataset(fin, **{'group':'Sounding'})
+    dd = dd.assign(ddret[['psurf', 'surface_type']])
+    dd = dd.assign(ddsnd[['gain']])
+    ddret.close()
+    ddsnd.close()
 
-#   2. Replace averaging kernel with product of it and pwf
-    ncf = netCDF4.Dataset(ftr, 'a') 
+#   Do generic stuff
+    dd = _generic(dd)
 
-    pwf    = ncf.variables['pwf']
-    avgker = ncf.variables['xco2_avgker']
-    avgker[:] = avgker[:]*pwf[:]
+#   Translate gain to operation mode
+    gain = dd['gain'].values
+    nsound = dd.sizes['sounding_id']
+    mode = 127*np.ones(nsound, dtype='int8')
 
-#   4. Create sounding_date and sounding_time variables
-    dvecs = ncf.variables['date'][:].astype(int)
+    for ii in range(nsound):
+        if gain[ii] == b'M': mode[ii] = 0
+        if gain[ii] == b'H': mode[ii] = 1
 
-    dates = ncf.createVariable('sounding_date', 'i4', (RECDIM,))
-    times = ncf.createVariable('sounding_time', 'i4', (RECDIM,))
+    dd = dd.assign(mode=('sounding_id', mode, {'units':'none',
+        'long_name':'GOSAT Operation Mode: 0=M-gain, 1=H-gain',
+        'missing_value':np.int8(127), 'comment':''}))
 
-    dates[:] = dvecs[:,0]*10000 + dvecs[:,1]*100 + dvecs[:,2]
-    times[:] = dvecs[:,3]*10000 + dvecs[:,4]*100 + dvecs[:,5]
+#   Drop vars, write, and close
+    dd = dd.drop_vars(('gain'))
+    dd.to_netcdf(ftr)
+    dd.close()
 
-    dates.units         = 'yyyymmdd'
-    dates.long_name     = 'Sounding date'
-    dates.missing_value = np.int32(-9999)
-    times.units         = 'HHMMSS'
-    times.long_name     = 'Sounding time'
-    times.missing_value = np.int32(-9999)
-    times.comment       = 'from scan start time in UTC'
+    return None
 
-#   5. Translate gain to operation mode
-    gain = ncf.variables['gain'][:]
-    mode = ncf.createVariable('operation_mode', 'i1', (RECDIM,))
+def oco(fin, ftr):
+    '''Translate ACOS XCO2 OCO retrievals to xtralite'''
 
-    mode[:] = 127
-    for ir in range(len(gain)):
-        if gain[ir] == b'M': mode[ir] = 0
-        if gain[ir] == b'H': mode[ir] = 1
+#   Open and add needed group vars
+    dd = xr.open_dataset(fin)
+    ddret = xr.open_dataset(fin, **{'group':'Retrieval'})
+    ddsnd = xr.open_dataset(fin, **{'group':'Sounding'})
+    dd = dd.assign(ddret[['psurf', 'surface_type']])
+    dd = dd.assign(ddsnd[['operation_mode']])
+    ddret.close()
+    ddsnd.close()
 
-    mode.units         = 'none'
-    mode.long_name     = 'GOSAT Operation Mode: 0=M-gain, 1=H-gain'
-    mode.missing_value = 127
-    mode.comment       = ''
+#   Do generic stuff
+    dd = _generic(dd)
 
-    ncf.close()
+#   Drop vars, write, and close
+    dd = dd.drop_vars(('vertex_latitude', 'vertex_longitude', 'vertices',
+        'footprints', 'xco2_qf_simple_bitflag'), errors='ignore')
+    dd.to_netcdf(ftr)
+    dd.close()
 
     return None

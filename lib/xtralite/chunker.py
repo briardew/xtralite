@@ -17,7 +17,10 @@ from subprocess import call
 from os import path
 import datetime as dtm
 import numpy as np
-import xarray as xr
+
+# monkey patch for xarray fill value bug
+#import xarray as xr
+from xtralite.patches import xarray as xr
 
 DEBUG   = False
 VERBOSE = True

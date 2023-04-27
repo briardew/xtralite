@@ -371,8 +371,8 @@ def build(**xlargs):
             lonout[:] = np.rad2deg(np.arctan2(yyavg, xxavg))
 
 #           Someone always has to be special
-#           *** FIXME *** Check when to turn this off *** FIXME ***
-            if var.lower() == 'co':
+#           *** FIXME *** Double check date *** FIXME ***
+            if var.lower() == 'co' and jdnow < dtm.datetime(2022, 2,23):
                 avgker = ncf2.variables['column_averaging_kernel']
                 avgker[:] = avgker[:]/1000.
 

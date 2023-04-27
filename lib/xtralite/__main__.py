@@ -41,9 +41,10 @@ parser.add_argument('--repro', help='reprocess/overwrite (default: false)',
 parser.add_argument('--head', help='head data directory (default: ./data)')
 parser.add_argument('--log', help='log file (default: stdout)')
 
-# Construct argument dictionary
-xlargs = vars(parser.parse_args())
+def main(**xlargs):
+    if xlargs['head'] is None: xlargs.pop('head')
+    build(**xlargs)
 
-if xlargs['head'] is None: xlargs.pop('head')
-
-sys.exit(build(**xlargs))
+if __name__ == '__main__':
+    xlargs = vars(parser.parse_args())
+    sys.exit(main(**xlargs))

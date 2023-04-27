@@ -84,8 +84,9 @@ def setup(**xlargs):
 
     return xlargs
 
-def prep(fname, name):
+def prep(fname, sat, ver):
     import numpy as np
+    from xtralite.patches import xarray as xr
     import netCDF4
 
 #   Default settings
@@ -96,12 +97,14 @@ def prep(fname, name):
     DOGAIN = False					# Do gain correction?
 
 #   Name-based modifications
-    if name[:5] == 'gosat':
+    if sat == 'gosat':
         QCSNOW = False					# Apply snow quality flag? (GOSAT/OCO-3 don't have it)
         DOFOOT = False					# Do footprint correction?
         DOGAIN = True					# Do gain correction?
-    if name[:4] == 'oco3':
+    if sat == 'oco3':
         QCSNOW = False					# Apply snow quality flag? (GOSAT/OCO-3 don't have it)
+    if sat == 'oco2' and ver[:2] == 'v9':
+        QCSNOW = False					# Apply snow quality flag? (OCO-2 v9  doesn't have it)
 
 #   Diagnostic output
     print('\nPreparing as: ' + fname)
@@ -165,10 +168,13 @@ def prep(fname, name):
 #   Clobber sounding id (uint64 is slow in chunker)
     print('   * Converting sounding_id to index')
     sids[:] = np.arange(1,sids[:].size+1)
+    sids.units = '#'
+    sids.long_name = 'Sounding number of day'
+    sids.comment = ''
 
-    print('')
     ncf.close()
 
+    print('')
     return None
 
 def build(**xlargs):
@@ -220,6 +226,6 @@ def build(**xlargs):
         pout = call(['mkdir', '-p', xlargs['prep'] + '/Y' + yrnow])
         pout = call(['cp', '-f', flite, fprep])
 
-        prep(fprep, xlargs['name'])
+        prep(fprep, xlargs['sat'], xlargs['ver'])
 
     return xlargs

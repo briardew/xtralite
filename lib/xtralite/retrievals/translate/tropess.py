@@ -54,7 +54,8 @@ def translate(fin, ftr):
     peavg.units = 'hPa'
     peavg.long_name = 'Edge pressures of averaging kernel'
     peavg.missing_value = FILLSING
-    peavg[:] = np.append(pbotin, np.zeros((numsnd,1)), 1)
+#   Would be nice to sort this out
+    peavg[:] = np.append(pbotin, 0.01*np.ones((numsnd,1)), 1)
 
     dpavg = peavg[:,:-1] - peavg[:,1:]
     dpavg.mask = pbotin.mask
@@ -64,7 +65,38 @@ def translate(fin, ftr):
         pwf[:,kk] = dpavg[:,kk] / np.sum(dpavg, axis=1)
     pwf.mask = dpavg.mask
 
-#   4. Create column averaging kernel (avgker)
+#   4. Create column obs (obs), a priori (priorpro), and
+#   uncertainty (uncert)
+    obspro = ncf.variables['x']
+    obs = ncf.createVariable('obs', 'float32', (RECDIM,),
+        fill_value=FILLSING)
+    obs.units = OBSUNITS
+    obs.long_name = 'Average column observation'
+    obs.missing_value = FILLSING
+    obs[:] = np.sum(pwf[:,:]*obspro[:,:], axis=1)
+
+    priorpro = ncf.variables['priorpro']
+    priorobs = ncf.createVariable('priorobs', 'float32', (RECDIM,),
+        fill_value=FILLSING)
+    priorobs.units = OBSUNITS
+    priorobs.long_name = 'Average column a priori'
+    priorobs.missing_value = FILLSING
+    priorobs[:] = np.sum(pwf[:,:]*priorpro[:,:], axis=1)
+
+#   Appears broken for CO: Should be -20s, but is O(1)
+    uncpro = ncf.variables['observation_error']
+#   Correct overflow (why?!?)
+    uncpro = np.minimum(uncpro, np.finfo(uncpro.dtype).max)
+    uncert = ncf.createVariable('uncert', 'float32', (RECDIM,),
+        fill_value=FILLSING)
+    uncert.units = OBSUNITS
+    uncert.long_name = 'Average column uncertainty'
+    uncert.missing_value = FILLSING
+    uncert[:] = 0.
+    for kk in range(numavg):
+        uncert[:] = uncert[:] + np.sum(pwf*obspro*uncpro[:,:,kk], axis=1)
+
+#   5. Create column averaging kernel (avgker)
     avgkin = ncf.variables['averaging_kernel'][:]
     avgker = ncf.createVariable('avgker', 'float32', (RECDIM,'navg'),
         fill_value=FILLSING)
@@ -73,39 +105,16 @@ def translate(fin, ftr):
     avgker.missing_value = FILLSING
     avgker[:] = np.zeros_like(dpavg)
 
-#   Check averaging kernel transpose
-#   Still need to account for log space
+#   Check averaging kernel transpose & correct log transform
+#   Should be both multiplying by obspro and dividing by ...?
+#   Maybe keep this in ln?
     for kk in range(numavg):
-        avgker[:] = avgker[:] + pwf*obspro*avgkin[:,:,kk]
+#       avgker[:] = avgker[:] + pwf*obspro*avgkin[:,:,kk]
+        avgadd = pwf*obspro*avgkin[:,:,kk]
+        for jj in range(numavg):
+            avgadd[:,jj] = avgadd[:,jj]/priorpro[:,jj]
+        avgker[:] = avgker[:] + avgadd
     avgker[:].mask = pwf.mask
-
-#   5. Create column obs (obs), a priori (priorpro), and
-#   uncertainty (uncert)
-    obspro = ncf.variables['x']
-    obs = ncf.createVariable('obs', 'float32', (RECDIM,),
-        fill_value=FILLSING)
-    obs.units = OBSUNITS
-    obs.long_name = 'Average column observation'
-    obs.missing_value = FILLSING
-    obs[:] = np.sum(pwf[:]*obspro[:], axis=1)
-
-    priorpro = ncf.variables['priorpro']
-    priorobs = ncf.createVariable('priorobs', 'float32', (RECDIM,),
-        fill_value=FILLSING)
-    priorobs.units = OBSUNITS
-    priorobs.long_name = 'Average column a priori'
-    priorobs.missing_value = FILLSING
-    priorobs[:] = np.sum(pwf[:]*priorpro[:], axis=1)
-
-    uncpro = ncf.variables['observation_error']
-    uncert = ncf.createVariable('uncert', 'float32', (RECDIM,),
-        fill_value=FILLSING)
-    uncert.units = OBSUNITS
-    uncert.long_name = 'Average column uncertainty'
-    uncert.missing_value = FILLSING
-    uncert[:] = 0.
-    for kk in range(numavg):
-        uncert[:] = uncert[:] + np.sum(pwf*uncpro[:,:,kk], axis=1)
 
 #   6. Create sounding_date and sounding_time variables
 #   Could change to datetime_utc

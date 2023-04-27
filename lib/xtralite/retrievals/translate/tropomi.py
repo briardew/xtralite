@@ -33,8 +33,8 @@ def _generic_beg(dd):
 
     dd = dd.assign(date=('nsound', date, {'units':'YYYYMMDD',
         'long_name':'sounding date', 'missing_value':np.int32(-9999)}))
-    dd = dd.assign(time=('nsound', time, {'units':'YYYYMMDD',
-        'long_name':'sounding date', 'missing_value':np.int32(-9999)}))
+    dd = dd.assign(time=('nsound', time, {'units':'hhmmss',
+        'long_name':'sounding time', 'missing_value':np.int32(-9999)}))
 
     return dd
 
@@ -53,7 +53,7 @@ def translate_co(fin, ftr):
     '''Translate TROPOMI column CO retrievals to CoDAS format'''
 
 #   Open and do generic beginning
-    dd = xr.open_dataset(fin, engine='netcdf4')
+    dd = xr.open_dataset(fin)
     dd = _generic_beg(dd)
 
 #   Rename dimensions and variables
@@ -91,7 +91,7 @@ def translate_ch4(fin, ftr):
     '''Translate TROPOMI column CH4 retrievals to CoDAS format'''
 
 #   Open and do generic beginning
-    dd = xr.open_dataset(fin, engine='netcdf4')
+    dd = xr.open_dataset(fin)
     dd = _generic_beg(dd)
 
 #   Rename dimensions and variables
@@ -125,7 +125,7 @@ def translate_hcho(fin, ftr):
     '''Translate TROPOMI column HCHO retrievals to CoDAS format'''
 
 #   Open and do generic beginning
-    dd = xr.open_dataset(fin, engine='netcdf4')
+    dd = xr.open_dataset(fin)
     dd = _generic_beg(dd)
 
 #   Rename dimensions and variables
@@ -168,7 +168,7 @@ def translate_so2(fin, ftr):
     '''Translate TROPOMI column SO2 retrievals to CoDAS format'''
 
 #   Open and do generic beginning
-    dd = xr.open_dataset(fin, engine='netcdf4')
+    dd = xr.open_dataset(fin)
     dd = _generic_beg(dd)
 
 #   Rename dimensions and variables
@@ -210,7 +210,7 @@ def translate_no2(fin, ftr):
     '''Translate TROPOMI column NO2 retrievals to CoDAS format'''
 
 #   Open and do generic beginning
-    dd = xr.open_dataset(fin, engine='netcdf4')
+    dd = xr.open_dataset(fin)
     dd = _generic_beg(dd)
 
 #   Rename dimensions and variables
@@ -252,7 +252,7 @@ def translate_o3(fin, ftr):
     '''Translate TROPOMI column O3 retrievals to CoDAS format'''
 
 #   Open and do generic beginning
-    dd = xr.open_dataset(fin, engine='netcdf4')
+    dd = xr.open_dataset(fin)
     dd = _generic_beg(dd)
 
 #   Rename dimensions and variables

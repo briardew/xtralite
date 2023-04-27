@@ -11,6 +11,9 @@ xtralite: Acquire, build, and prepare constituent data for assimilation
 # Todo:
 #===============================================================================
 
+__version__ = '0.0.1'
+__author__ = 'Brad Weir'
+
 from xtralite import chunker
 from xtralite import retrievals
 
@@ -24,13 +27,11 @@ def build(**xlargs):
     xlargs['jdbeg'] = dtm.datetime.strptime(xlargs['beg'], '%Y-%m-%d')
     xlargs['jdend'] = dtm.datetime.strptime(xlargs['end'], '%Y-%m-%d')
 
-#   Check for NCO utilities if chunking
-    if xlargs.get('codas',False):
-        try:
-            pout = Popen('ncks', stdout=PIPE)
-        except OSError:
-            sys.stderr.write('*** ERROR *** NCO executables not in $PATH\n\n')
-            sys.exit(2)
+#   Check for NCO utilities (some retrievals still use these)
+    try:
+        pout = Popen('ncks', stdout=PIPE)
+    except OSError:
+        sys.stderr.write('*** WARNING *** NCO executables not in $PATH\n\n')
 
     name = xlargs.get('name', '')
     obsmod = retrievals.getmod(name)
@@ -55,6 +56,15 @@ def build(**xlargs):
     if xlargs.get('codas',False): print('Chunking files in ' + chunk)
     print('from ' + xlargs['beg'] + ' to ' + xlargs['end'])
 
+#   Last chance to kill
+    sys.stdout.write('\nIn ')
+    sys.stdout.flush()
+    for nn in range(5):
+        sys.stdout.write(str(5-nn) + ' ')
+        sys.stdout.flush()
+        sleep(1)
+    sys.stdout.write('\n\n')
+
 #   Loop over variable and satellite if unspecified
     xltame = dict(xlargs)
     if xlargs.get('var','*') == '*':
@@ -71,15 +81,6 @@ def build(**xlargs):
             xltame['sat'] = sat
             build(**xltame)
         return
-
-#   Last chance to kill
-    sys.stdout.write('\nIn ')
-    sys.stdout.flush()
-    for nn in range(5):
-        sys.stdout.write(str(5-nn) + ' ')
-        sys.stdout.flush()
-        sleep(1)
-    sys.stdout.write('\n\n')
 
 #   Cut down on time
     sat = xlargs.get('sat', '*')
