@@ -38,7 +38,7 @@ def setup(**xlargs):
 
     var = xlargs.get('var', '*')
     xlargs['fhead'] = 'MOP02' + var[0].upper() + '-'
-    xlargs['trfun'] = lambda fin, ftr: translate(fin, ftr, var)
+    xlargs['translate'] = lambda fin, ftr: translate(fin, ftr, var)
 
     xlargs = default.setup(**xlargs)
 

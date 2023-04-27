@@ -138,8 +138,14 @@ def paste6hr(date, dprv, **xlargs):
         if not path.isfile(fout) or xlargs.get('repro',False):
             if VERBOSE: print('Writing ' + path.basename(fout))
 
+            # An unfortunate hack to keep RECDIM dtype constant
+            ds = xr.open_dataset(flist[0])
+            dtype = ds[RECDIM].dtype
+            ds.close()
+
             ds = xr.open_mfdataset(flist, mask_and_scale=False,
                combine='nested', concat_dim=RECDIM)
+            ds = ds.assign_coords({RECDIM: ds[RECDIM].values.astype(dtype)})
             ds.attrs['input_files'] = input_files
             ds.attrs['history'] = 'Created on ' + dtm.datetime.now().isoformat()
             contact = 'Brad Weir <briardew@gmail.com>'
@@ -159,7 +165,7 @@ def chunk(**xlargs):
     FTAIL = xlargs.get('ftail', FTAILDEF)
     FHOUT = xlargs['fhout']
     FTOUT = xlargs.get('ftout', FTAILDEF)
-    trfun = xlargs['trfun']
+    translate = xlargs['translate']
 
     jdnow = xlargs['jdbeg']
     jdprv = jdnow + dtm.timedelta(-1)
@@ -195,7 +201,7 @@ def chunk(**xlargs):
         if VERBOSE:
             print('Translating ' + path.basename(fin))
             print('         to ' + path.basename(ftr))
-        trfun(fin, ftr)
+        translate(fin, ftr)
 
 #       Set input filename
         with xr.open_dataset(ftr) as ds:

@@ -22,7 +22,7 @@ def _generic(dd):
         'pressure_weight':'pwf'})
 
 #   Do anything to sounding_id and levels dims?
-#   dd['sounding_id'] = dd['sounding_id'].astype('int32')
+    dd['sounding_id'] = dd['sounding_id'].astype('int32')
 
 #   Create date and time vars
     dvec = dd['date'].values.astype('int32')

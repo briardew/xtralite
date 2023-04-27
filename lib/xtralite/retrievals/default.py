@@ -74,11 +74,11 @@ def setup(**xlargs):
     if '*' in fhout:
         xlargs['fhout']  = mod + '_' + var + '_' + sat + '_' + ver + '.'
 
-    if 'ftail'  not in xlargs: xlargs['ftail']  = '.nc'
-    if 'yrdigs' not in xlargs: xlargs['yrdigs'] = 4
-    if 'recdim' not in xlargs: xlargs['recdim'] = 'nsound'
-    if 'tname'  not in xlargs: xlargs['tname']  = 'time'
-    if 'trfun'  not in xlargs: xlargs['trfun']  = translate
+    xlargs['ftail']  = xlargs.get('ftail',  '.nc')
+    xlargs['yrdigs'] = xlargs.get('yrdigs', 4)
+    xlargs['recdim'] = xlargs.get('recdim', 'nsound')
+    xlargs['tname']  = xlargs.get('tname',  'time')
+    xlargs['translate'] = xlargs.get('translate', translate)
 
 #   Set wget arguments
     wgargs = ['-r', '-np', '-nd', '-e', 'robots=off']

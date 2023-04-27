@@ -47,7 +47,7 @@ def setup(**xlargs):
     xlargs = default.setup(**xlargs)
 
     var = xlargs.get('var', '*')
-    if '*' not in var: xlargs['trfun'] = translate[var]
+    if '*' not in var: xlargs['translate'] = translate[var]
 
     return xlargs
 

@@ -134,7 +134,7 @@ def build(**xlargs):
         xlargs['fhead'] = fhead
         xlargs['ftail'] = ftail
         xlargs['fhout'] = mod + '_' + var + '_' + sat + '_' + veruse + '.'
-#       xlargs['trfun'] = translate.iasi[varlo + '_' + veruse.lower()]
+#       xlargs['translate'] = translate.iasi[varlo + '_' + veruse.lower()]
 
 #       Download daily files
         cmd = (['wget', '--no-check-certificate'] + wgargs +

@@ -65,7 +65,7 @@ def build(**xlargs):
 
     xlargs['fhead'] = fhead
     xlargs['fhout'] = mod + '_' + var + '_' + sat + '_' + ver + '.'
-    xlargs['trfun'] = translate
+    xlargs['translate'] = translate
 
 #   Determine timespan
     jdbeg = xlargs.get('jdbeg', min(satday0))

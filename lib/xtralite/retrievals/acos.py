@@ -71,8 +71,8 @@ def setup(**xlargs):
     xlargs['recdim'] = 'sounding_id'
     xlargs['tname']  = 'sounding_time'
 
-    if sat[:5] == 'gosat': xlargs['trfun']  = translate.gosat
-    if sat[:3] == 'oco':   xlargs['trfun']  = translate.oco
+    if sat[:5] == 'gosat': xlargs['translate']  = translate.gosat
+    if sat[:3] == 'oco':   xlargs['translate']  = translate.oco
 
 #   Set wget arguments
     wgargs = ['-r', '-np', '-nd', '-e', 'robots=off']
