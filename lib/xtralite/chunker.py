@@ -15,7 +15,7 @@ Convert retrievals into xtralite and chunk for assimilation with CoDAS
 from glob import glob
 from subprocess import call
 from os import path
-import datetime as dtm
+from datetime import datetime, timedelta
 import numpy as np
 
 # monkey patch for xarray fill value bug
@@ -29,10 +29,6 @@ RMTMPS  = True
 TNAMEDEF  = 'time'
 RECDIMDEF = 'nsound'
 FTAILDEF  = '.nc'
-
-# Module only
-__DIRIN   = ''
-__DIROUT  = ''
 
 #===============================================================================
 def split3hr(fin, date, **xlargs):
@@ -107,17 +103,20 @@ def paste6hr(date, dprv, **xlargs):
     FTOUT  = xlargs.get('ftout',  FTAILDEF)
     FHOUT  = xlargs['fhout']
 
+    jdnow = datetime.strptime(date, '%Y%m%d')
+
+    DIROUT = xlargs['chunk'] + '/Y' + str(jdnow.year)
+
     if VERBOSE: print('---')
     for nh in [-3, 3, 9, 15]:
-        jday  = dtm.datetime.strptime(date, '%Y%m%d')
-        jleft = jday + dtm.timedelta(hours=nh)
-        jrght = jday + dtm.timedelta(hours=nh+3)
+        jleft = jdnow + timedelta(hours=nh)
+        jrght = jdnow + timedelta(hours=nh+3)
         dleft = jleft.strftime('%Y%m%d_%H') + 'z'
         drght = jrght.strftime('%Y%m%d_%H') + 'z'
 
         fleft = path.join(xlargs['chunk'], FHOUT + dleft + '.bit' + FTOUT)
         frght = path.join(xlargs['chunk'], FHOUT + drght + '.bit' + FTOUT)
-        fout  = path.join(__DIROUT,        FHOUT + drght          + FTOUT)
+        fout  = path.join(DIROUT,          FHOUT + drght          + FTOUT)
 
         flist = []
         if path.isfile(fleft): flist = flist + [fleft]
@@ -147,7 +146,7 @@ def paste6hr(date, dprv, **xlargs):
                combine='nested', concat_dim=RECDIM)
             ds = ds.assign_coords({RECDIM: ds[RECDIM].values.astype(dtype)})
             ds.attrs['input_files'] = input_files
-            ds.attrs['history'] = 'Created on ' + dtm.datetime.now().isoformat()
+            ds.attrs['history'] = 'Created on ' + datetime.now().isoformat()
             contact = 'Brad Weir <briardew@gmail.com>'
             if 'contact' in ds.attrs:
                 contact = contact + ' / ' + ds.attrs['contact']
@@ -168,8 +167,8 @@ def chunk(**xlargs):
     translate = xlargs['translate']
 
     jdnow = xlargs['jdbeg']
-    jdprv = jdnow + dtm.timedelta(-1)
-    jdnxt = jdnow + dtm.timedelta(+1)
+    jdprv = jdnow + timedelta(-1)
+    jdnxt = jdnow + timedelta(+1)
 
     if xlargs['yrdigs'] == 2:
         yrget = str(jdnow.year-2000).zfill(2)
@@ -181,11 +180,10 @@ def chunk(**xlargs):
     dprv = str(jdprv.year) + str(jdprv.month).zfill(2) + str(jdprv.day).zfill(2)
     dnxt = str(jdnxt.year) + str(jdnxt.month).zfill(2) + str(jdnxt.day).zfill(2)
 
-    global __DIRIN, __DIROUT
-    __DIRIN  = xlargs['prep']  + '/Y' + str(jdnow.year)
-    __DIROUT = xlargs['chunk'] + '/Y' + str(jdnow.year)
+    DIRIN  = xlargs['prep']  + '/Y' + str(jdnow.year)
+    DIROUT = xlargs['chunk'] + '/Y' + str(jdnow.year)
 
-    flist = glob(__DIRIN  + '/' + FHEAD + dget + '*' + FTAIL)
+    flist = glob(DIRIN  + '/' + FHEAD + dget + '*' + FTAIL)
     ftr   = xlargs['chunk'] + '/' + FHOUT + dnow + '.trans' + FTOUT
 
     if 0 < len(flist):
@@ -195,7 +193,7 @@ def chunk(**xlargs):
         fin = sorted(flist, key=path.getmtime)[-1]
 
         print('Processing  ' + path.basename(fin))
-        pout = call(['mkdir', '-p', __DIROUT])
+        pout = call(['mkdir', '-p', DIROUT])
 
 #       Convert data to standard format
         if VERBOSE:

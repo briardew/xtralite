@@ -24,7 +24,7 @@ from os.path import expanduser
 modname  = 'tropomi'
 varlist  = ['ch4', 'co', 'hcho', 'so2', 'no2', 'o3']
 satlist  = ['s5p']
-satday0  = [dtm.datetime(2018, 4, 1)]
+satday0  = [dtm.datetime(2018, 4,30)]
 namelist = [modname + '_' + vv for vv in varlist]
 
 SERVE = 'https://tropomi.gesdisc.eosdis.nasa.gov/data'
@@ -85,7 +85,6 @@ def build(**xlargs):
     VCHECK = ''				# Variable whose mask we use
 
     if var.lower() == 'ch4':
-        LANDONLY = True
         CLMAX = float('nan')
         VCLOUD = ''
         VCHECK = 'methane_mixing_ratio_bias_corrected'
@@ -156,35 +155,48 @@ def build(**xlargs):
         yrnow = str(jdnow.year)
         dnow = yrnow + str(jdnow.month).zfill(2) + str(jdnow.day).zfill(2)
 
-#       Determine version based on date
-        vernow = 'v1.3f'
-        if dtm.datetime(2019, 8, 6) < jdnow: vernow = 'v1.4f'
-        if dtm.datetime(2021, 7, 1) < jdnow: vernow = 'v2.2f'
+#       Set version based on date (see product readme)
+#       Not exactly right, but ok-ish
+#       vernow = 'v1L'
+#       if dtm.datetime(2019, 8, 6) <= jdnow:
+#           vernow = 'v1H'
+#       elif dtm.datetime(2021, 7, 1) <= jdnow:
+#           vernow = 'v2r'
+#       elif dtm.datetime(2021, 8, 4) <= jdnow:
+#           vernow = 'v2f'
+        vernow = 'v2r'
+        if dtm.datetime(2021, 8, 4) <= jdnow: vernow = 'v2f'
 
-        veruse = ver
-        if ver == '*': veruse = vernow
+#       Switch version if need be
+        if ver != vernow:
+            sys.stderr.write(("*** WARNING *** Switching specified version " +
+                "(%s) to current version (%s)\n") % (ver, vernow))
 
-        if veruse.lower() != vernow.lower():
-            sys.stderr.write(("*** WARNING *** Specified version (%s) " +
-                "doesn't match current version (%s)\n") % (veruse, vernow))
-            continue
+            xlargs['daily'] = xlargs['daily'].replace(ver, vernow)
+            xlargs['chunk'] = xlargs['chunk'].replace(ver, vernow)
+            xlargs['fhead'] = xlargs['fhead'].replace(ver, vernow)
+            xlargs['fhout'] = xlargs['fhout'].replace(ver, vernow)
 
-#       Directory and filename information (needs some cleaning)
+            xlargs['ver'] = vernow
+            ver = vernow
+
+#       Directory and filename wildcard substitution (needs improvement)
         if '*' in xlargs['daily']:
             xlargs['daily'] = (xlargs['head'] + '/' + mod + '/' + var +
-                '/' + sat + '_' + veruse + '_daily')
+                '/' + sat + '_' + ver + '_daily')
 
         DLITE  = xlargs['daily']
         DIRTMP = DLITE + '/tmp'
         DORBIT = DLITE[:-6] + '_orbit'
-        FHOUT  = 'tropomi_' + var + '_s5p_' + veruse + '.'
+        FHOUT  = 'tropomi_' + var + '_s5p_' + ver + '.'
 
         if xlargs.get('codas',False) and '*' in xlargs.get('chunk','*'):
             chops = xlargs['daily'].rsplit('_daily', 1)
             if len(chops) == 1: chops = chops + ['']
             xlargs['chunk'] = '_chunks'.join(chops)
-            xlargs['fhead'] = FHOUT
-            xlargs['fhout'] = FHOUT
+
+        if '*' in xlargs.get('fhead','*'): xlargs['fhead'] = FHOUT
+        if '*' in xlargs.get('fhout','*'): xlargs['fhout'] = FHOUT
 
 #       Continue if output exists and not reprocessing
         fout = DLITE + '/Y' + yrnow + '/' + FHOUT + dnow + FTAIL
@@ -196,13 +208,22 @@ def build(**xlargs):
         if vardir == 'O3': vardir = vardir + '_TOT'
         ardir = (sat.upper() + '_TROPOMI_Level2/' + sat.upper() + '_L2__' +
             vardir + '_' * (6 - len(vardir)))
-        if vernow == 'v1.3f': ardir = ardir +     '.1'
-        if vernow == 'v1.4f': ardir = ardir + '_HiR.1'
-        if vernow == 'v2.2f': ardir = ardir + '_HiR.2'
+        if ver[:3] == 'v1L':
+            ardir = ardir + '.1'
+        elif ver[:3] == 'v1H':
+            ardir = ardir + '_HiR.1'
+        elif ver[:2] == 'v2':
+            ardir = ardir + '_HiR.2'
+
+#       Set wildcard for files to download
+        if ver[-1] == 'r':
+            fwild = '*_' + 'RPRO' + '_*_' + dnow + 'T*_*' + FTAIL
+        elif ver[-1] == 'f':
+            fwild = '*_' + 'OFFL' + '_*_' + dnow + 'T*_*' + FTAIL
+        else:
+            fwild = '*_' + '*'    + '_*_' + dnow + 'T*_*' + FTAIL
 
 #       Download orbit files
-        fwild = '*_' + dnow + 'T*_*' + FTAIL
-
         pout = call(['mkdir', '-p', DORBIT + '/Y' + yrnow])
         for mm in range(-1,2):
             pout = call(WGETCMD + ' --load-cookies ~/.urs_cookies ' +
@@ -217,12 +238,6 @@ def build(**xlargs):
 #       ---
         flist  = glob(DORBIT + '/Y' + yrnow + '/' + fwild)
         sound0 = 0
-
-#       Can do something like
-#       0 = land, 1 = water; usually for CH4 you'll QC out a couple extra obs
-#       Will need a way to recombine in order
-#       pout = call(['ncap2', '-O', '-s', 'where(surface_classification % 2 == 0) VCHECK=VCHECK.get_miss();', fone, fone])
-#       pout = call(['ncap2', '-O', '-s', 'where(surface_classification % 1 == 0) VCHECK=VCHECK.get_miss();', fone, fone])
 
         for ff in sorted(flist):
 #           Create temporary filenames
@@ -371,8 +386,8 @@ def build(**xlargs):
             lonout[:] = np.rad2deg(np.arctan2(yyavg, xxavg))
 
 #           Someone always has to be special
-#           *** FIXME *** Double check date *** FIXME ***
-            if var.lower() == 'co' and jdnow < dtm.datetime(2022, 2,23):
+#           *** Always good to double check ***
+            if var.lower() == 'co' and ver[:2] == 'v1':
                 avgker = ncf2.variables['column_averaging_kernel']
                 avgker[:] = avgker[:]/1000.
 
