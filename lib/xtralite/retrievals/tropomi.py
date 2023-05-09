@@ -17,49 +17,47 @@ TROPOMI support for xtralite
 #   albeit in a strange format
 #===============================================================================
 
-import datetime as dtm
 import sys
-from os.path import expanduser
+from os import path, remove, rmdir
+from subprocess import call
+from glob import glob
+from datetime import datetime, timedelta
+
+import numpy as np
+import xarray as xr
+import netCDF4
 
 modname  = 'tropomi'
 varlist  = ['ch4', 'co', 'hcho', 'so2', 'no2', 'o3']
 satlist  = ['s5p']
-satday0  = [dtm.datetime(2018, 4,30)]
+satday0  = [datetime(2018, 4,30)]
 namelist = [modname + '_' + vv for vv in varlist]
 
 SERVE = 'https://tropomi.gesdisc.eosdis.nasa.gov/data'
 WGETCMD = 'wget'
-#WGETCMD = expanduser('~/bin/borg-wget.sh')
+#WGETCMD = path.expanduser('~/bin/borg-wget.sh')
 
 RMTMPS = True				# remove temporary files?
 RMORBS = True				# remove orbit files?
 
 RECDIM = 'sounding'			# shares name with nsound from chunk format
 FTAIL  = '.nc'
-TIME0  = dtm.datetime(2010, 1, 1)
+TIME0  = datetime(2010, 1, 1)
 
 def setup(**xlargs):
-    from xtralite.retrievals import default
-    from xtralite.retrievals.translate.tropomi import translate
+    from . import default
+    from .translators.tropomi import translate
 
     xlargs['ftail'] = xlargs.get('ftail', FTAIL)
 
     xlargs = default.setup(**xlargs)
 
     var = xlargs.get('var', '*')
-    if '*' not in var: xlargs['translate'] = translate[var]
+    if '*' not in var: xlargs['translate'] = translate[var.lower()]
 
     return xlargs
 
 def build(**xlargs):
-    from subprocess import call
-    from os import remove, rmdir
-    from os.path import isfile
-    from glob import glob
-    import numpy as np
-    import xarray as xr
-    import netCDF4
-
 #   Get retrieval arguments
     mod = xlargs.get('mod', '*')
     var = xlargs.get('var', '*')
@@ -146,26 +144,26 @@ def build(**xlargs):
 
 #   Determine timespan
     jdbeg = xlargs.get('jdbeg', min(satday0))
-    jdend = xlargs.get('jdend', dtm.datetime.now())
+    jdend = xlargs.get('jdend', datetime.now())
     ndays = (jdend - jdbeg).days + 1
 
     wgargs = xlargs.get('wgargs', None)
     for nd in range(ndays):
-        jdnow = jdbeg + dtm.timedelta(nd)
+        jdnow = jdbeg + timedelta(nd)
         yrnow = str(jdnow.year)
         dnow = yrnow + str(jdnow.month).zfill(2) + str(jdnow.day).zfill(2)
 
 #       Set version based on date (see product readme)
 #       Not exactly right, but ok-ish
 #       vernow = 'v1L'
-#       if dtm.datetime(2019, 8, 6) <= jdnow:
+#       if datetime(2019, 8, 6) <= jdnow:
 #           vernow = 'v1H'
-#       elif dtm.datetime(2021, 7, 1) <= jdnow:
+#       elif datetime(2021, 7, 1) <= jdnow:
 #           vernow = 'v2r'
-#       elif dtm.datetime(2021, 8, 4) <= jdnow:
+#       elif datetime(2021, 8, 4) <= jdnow:
 #           vernow = 'v2f'
         vernow = 'v2r'
-        if dtm.datetime(2021, 8, 4) <= jdnow: vernow = 'v2f'
+        if datetime(2021, 8, 4) <= jdnow: vernow = 'v2f'
 
 #       Switch version if need be
         if ver != vernow:
@@ -200,7 +198,7 @@ def build(**xlargs):
 
 #       Continue if output exists and not reprocessing
         fout = DLITE + '/Y' + yrnow + '/' + FHOUT + dnow + FTAIL
-        if isfile(fout) and not xlargs.get('repro',False):
+        if path.isfile(fout) and not xlargs.get('repro',False):
             continue
 
 #       Set archive directory (ardir)
@@ -231,7 +229,7 @@ def build(**xlargs):
                 '--auth-no-challenge=on --keep-session-cookies ' +
                 '--content-disposition ' + ' '.join(wgargs) + ' ' +
                 SERVE + '/' + ardir + '/' + 
-                (jdnow + dtm.timedelta(mm)).strftime('%Y/%j') + '/' +
+                (jdnow + timedelta(mm)).strftime('%Y/%j') + '/' +
                 ' -A "' + fwild + '" -P ' + DORBIT + '/Y' + yrnow, shell=True)
 
 #       Convert orbit files into daily lite files
@@ -280,8 +278,8 @@ def build(**xlargs):
 #           HCHO and SO2 are unique with delta_time that has a ground_pixel
 #           dimension and missing time_utc values
             dfix = delt[:].data[:,0] if (delt.shape == obchk.shape) else delt[:].data
-            tscn = np.array([TIME0 + dtm.timedelta(seconds=int(time[:].data[()])) +
-                dtm.timedelta(milliseconds=int(dd)) for dd in dfix])
+            tscn = np.array([TIME0 + timedelta(seconds=int(time[:].data[()])) +
+                timedelta(milliseconds=int(dd)) for dd in dfix])
             tsnd = np.repeat(tscn, npix)
             tuse = np.array([tt.date() == jdnow.date() for tt in tsnd])
 
@@ -313,7 +311,7 @@ def build(**xlargs):
 #           Compute time for averaged sounding
             tdel = np.array([dd.total_seconds()
                 for dd in (tsnd[obuse] - tsnd[0])])
-            tavg = np.array([tsnd[0] + dtm.timedelta(seconds=ss)
+            tavg = np.array([tsnd[0] + timedelta(seconds=ss)
                 for ss in tdel])
 
 #           Create ndate dimension and date variable
@@ -432,7 +430,7 @@ def build(**xlargs):
 #           Compress and overwrite history
             pout = call(['ncks', '-O', '-L', '9', ftmp, fout])
             pout = call(['ncatted', '-h', '-O', '-a', 'history,global,o,c,' +
-                'Created on ' + dtm.datetime.now().isoformat(), fout])
+                'Created on ' + datetime.now().isoformat(), fout])
 
 #       Slightly terrifying
         if RMTMPS:

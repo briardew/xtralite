@@ -11,19 +11,25 @@ ACOS (GOSAT, OCO-2, OCO-3) support for xtralite
 # Todo:
 #===============================================================================
 
-import datetime as dtm
+from os import path
+from subprocess import call
+from glob import glob
+from datetime import datetime, timedelta
+
+import numpy as np
+import netCDF4
+# xarray has a habit of recasting dimensions
+from xtralite.patches import xarray as xr
 
 SERVE = 'https://oco2.gesdisc.eosdis.nasa.gov/data'
 
 varlist = ['co2']
 satlist = ['gosat', 'oco2', 'oco3']
-satday0 = [dtm.datetime(2009, 4, 1), dtm.datetime(2014, 8, 1),
-    dtm.datetime(2019, 8, 1)]
+satday0 = [datetime(2009, 4, 1), datetime(2014, 8, 1), datetime(2019, 8, 1)]
 namelist = satlist
 
 def setup(**xlargs):
-    import sys
-    from xtralite.retrievals.translate import acos as translate
+    from .translators import acos as translate
 
 #   Parse name into satellite, version, etc.
     name = xlargs['name']
@@ -85,10 +91,6 @@ def setup(**xlargs):
     return xlargs
 
 def prep(fname, sat, ver):
-    import numpy as np
-    from xtralite.patches import xarray as xr
-    import netCDF4
-
 #   Default settings
     UNCTHR = 1.e-3					# Flag obs w/ uncertainties < UNCTR
     ANGTHR = 80.					# Flag obs w/ ANGTHR < glint angle
@@ -178,13 +180,9 @@ def prep(fname, sat, ver):
     return None
 
 def build(**xlargs):
-    from subprocess import call
-    from glob import glob
-    import os.path
-
 #   Timespan
-    jdbeg = xlargs.get('jdbeg', dtm.datetime(1980, 1, 1))
-    jdend = xlargs.get('jdend', dtm.datetime.now())
+    jdbeg = xlargs.get('jdbeg', datetime(1980, 1, 1))
+    jdend = xlargs.get('jdend', datetime.now())
     ndays = (jdend - jdbeg).days + 1
 
 #   Archive directory
@@ -198,15 +196,15 @@ def build(**xlargs):
 #   Download and prepare lite files
     wgargs = xlargs.get('wgargs', None)
     for nd in range(ndays):
-        jdnow = jdbeg + dtm.timedelta(nd)
+        jdnow = jdbeg + timedelta(nd)
         yrnow = str(jdnow.year)
         yrget = str(jdnow.year-2000).zfill(2)
         dget = yrget + str(jdnow.month).zfill(2) + str(jdnow.day).zfill(2)
         fget = '*_' + dget + '_*' + xlargs['ftail']
 
 #       Download lite files
-        pout = call(['wget', '--load-cookies', os.path.expanduser('~/.urs_cookies'),
-            '--save-cookies', os.path.expanduser('~/.urs_cookies'),
+        pout = call(['wget', '--load-cookies', path.expanduser('~/.urs_cookies'),
+            '--save-cookies', path.expanduser('~/.urs_cookies'),
             '--auth-no-challenge=on', '--keep-session-cookies',
             '--content-disposition'] + wgargs +
             [SERVE + '/' + ardir + '/' + jdnow.strftime('%Y') + '/',
@@ -217,11 +215,11 @@ def build(**xlargs):
         if len(flist) == 0: continue
 
 #       Use newest matching input file (may be different versions)
-        flite = sorted(flist, key=os.path.getmtime)[-1]
+        flite = sorted(flist, key=path.getmtime)[-1]
         fprep = flite.replace(xlargs['daily'], xlargs['prep'], 1)
 
 #       Skip if output file exists and not reprocessing
-        if os.path.isfile(fprep) and not xlargs.get('repro',False): continue
+        if path.isfile(fprep) and not xlargs.get('repro',False): continue
 
         pout = call(['mkdir', '-p', xlargs['prep'] + '/Y' + yrnow])
         pout = call(['cp', '-f', flite, fprep])

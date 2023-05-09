@@ -11,36 +11,35 @@ TROPESS (AIRS, CrIS) support for xtralite
 # Todo:
 #===============================================================================
 
-import datetime as dtm
+import sys
+from os import path
+from subprocess import call
+from datetime import datetime, timedelta
 
 SERVE = 'https://tropess.gesdisc.eosdis.nasa.gov/data/TROPESS_Standard'
 
 varlist = ['o3', 'co', 'ch4', 'nh3', 'pan', 'hdo']
 satlist = ['airs', 'cris-s', 'cris-1']
 # Ideally
-#satday0 = [dtm.datetime(2002, 5, 1), dtm.datetime(2011,10, 1),
-#    dtm.datetime(2017,11, 1)]
+#satday0 = [datetime(2002, 5, 1), datetime(2011,10, 1), datetime(2017,11, 1)]
 # Actually
-satday0 = [dtm.datetime(2021, 1, 1), dtm.datetime(2021, 1, 1),
-    dtm.datetime(2021, 1, 1)]
+satday0 = [datetime(2021, 1, 1), datetime(2021, 1, 1), datetime(2021, 1, 1)]
 namelist = ['tropess_' + vv for vv in varlist]
 
 def setup(**xlargs):
     from . import default
+    from .translators.tropess import translate
 
 #   Hack for now/only ver
     xlargs['ver'] = xlargs.get('ver', 'v1f')
+
+    xlargs['translate'] = translate
 
     xlargs = default.setup(**xlargs)
 
     return xlargs
 
 def build(**xlargs):
-    import sys
-    from subprocess import call
-    from os.path import expanduser
-    from .translate.tropess import translate
-
 #   Get retrieval arguments
     mod = xlargs.get('mod', '*')
     var = xlargs.get('var', '*')
@@ -65,23 +64,22 @@ def build(**xlargs):
 
     xlargs['fhead'] = fhead
     xlargs['fhout'] = mod + '_' + var + '_' + sat + '_' + ver + '.'
-    xlargs['translate'] = translate
 
 #   Determine timespan
     jdbeg = xlargs.get('jdbeg', min(satday0))
-    jdend = xlargs.get('jdend', dtm.datetime.now())
+    jdend = xlargs.get('jdend', datetime.now())
     ndays = (jdend - jdbeg).days + 1
 
 #   Download
     wgargs = xlargs.get('wgargs', None)
     for nd in range(ndays):
-        jdnow = jdbeg + dtm.timedelta(nd)
+        jdnow = jdbeg + timedelta(nd)
         yrnow = str(jdnow.year)
         dget = yrnow + str(jdnow.month).zfill(2) + str(jdnow.day).zfill(2)
         fget = '*_' + dget + '_*' + xlargs['ftail']
 
-        pout = call(['wget', '--load-cookies', expanduser('~/.urs_cookies'),
-            '--save-cookies', expanduser('~/.urs_cookies'),
+        pout = call(['wget', '--load-cookies', path.expanduser('~/.urs_cookies'),
+            '--save-cookies', path.expanduser('~/.urs_cookies'),
             '--auth-no-challenge=on', '--keep-session-cookies',
             '--content-disposition'] + wgargs +
             [SERVE + '/' + ardir + '/' + jdnow.strftime('%Y') + '/',

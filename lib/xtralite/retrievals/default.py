@@ -15,7 +15,7 @@ Default support for xtralite
 from subprocess import call
 
 def translate(fin, ftr):
-    '''Translate input format to xtralite'''
+    '''Translate input to CoDAS format'''
     pout = call(['cp', '-f', fin, ftr])
 
     return None

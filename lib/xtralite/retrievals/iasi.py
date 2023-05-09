@@ -11,8 +11,9 @@ IASI support for xtralite
 # Todo:
 #===============================================================================
 
-import datetime as dtm
 import sys
+from subprocess import call
+from datetime import datetime, timedelta
 
 SERVE = 'https://cds-espri.ipsl.fr'
 # HNO3 and other NRT products available from Eumetcast
@@ -20,20 +21,24 @@ SERVE = 'https://cds-espri.ipsl.fr'
 
 varlist = ['co', 'ch4', 'co2', 'hcooh', 'nh3', 'so2', 'hno3']
 satlist = ['metop-a', 'metop-b', 'metop-c']
-satday0 = [dtm.datetime(2007,10, 1), dtm.datetime(2012, 9, 1),
-    dtm.datetime(2018,11, 1)]
+satday0 = [datetime(2007,10, 1), datetime(2012, 9, 1), datetime(2018,11, 1)]
 namelist = ['iasi_' + vv for vv in varlist]
 
 def setup(**xlargs):
-    from xtralite.retrievals import default
+    from . import default
+#   from .translators import iasi as translate
 
     xlargs = default.setup(**xlargs)
+
+#   var = xlargs.get('var', '*')
+#   ver = xlargs.get('ver', '*')
+#   key = (var + '_' + ver).lower()
+#   if '*' not in key: xlargs['translate'] = translate[key]
 
     return xlargs
 
 def build(**xlargs):
-    from subprocess import call
-#   from xtralite.retrievals.translate import iasi as translate
+#   from .translators import iasi as translate
 
     mod = xlargs.get('mod', '*')
     var = xlargs.get('var', '*')
@@ -45,13 +50,13 @@ def build(**xlargs):
 
 #   Determine timespan
     jdbeg = xlargs.get('jdbeg', min(satday0))
-    jdend = xlargs.get('jdend', dtm.datetime.now())
+    jdend = xlargs.get('jdend', datetime.now())
     ndays = (jdend - jdbeg).days + 1
 
 #   Download
     wgargs = xlargs.get('wgargs', None)
     for nd in range(ndays):
-        jdnow = jdbeg + dtm.timedelta(nd)
+        jdnow = jdbeg + timedelta(nd)
         yrnow = str(jdnow.year)
         dget = yrnow + str(jdnow.month).zfill(2) + str(jdnow.day).zfill(2)
 
@@ -86,13 +91,13 @@ def build(**xlargs):
         if varlo == 'co':
             verin  = 'v20100815'
             verout = 'v2010f'
-            if dtm.datetime(2014, 9,30) <= jdnow:
+            if datetime(2014, 9,30) <= jdnow:
                 verin  = 'v20140922'
                 verout = 'v2014f'
-            if dtm.datetime(2019, 5,14) <= jdnow:
+            if datetime(2019, 5,14) <= jdnow:
                 verin  = 'v20151001'
                 verout = 'v2015f'
-            if dtm.datetime(2019,12, 4) <= jdnow:
+            if datetime(2019,12, 4) <= jdnow:
                 verin  = 'V6.5.0'
                 verout = 'v6.5f'
 
@@ -106,7 +111,7 @@ def build(**xlargs):
                 ftail = '.txt'
                 fget  = fhead + dget + '_' + verin + ftail
 
-            if dtm.datetime(2019,12, 4) <= jdnow:
+            if datetime(2019,12, 4) <= jdnow:
                 fhead = 'IASI_METOP' + satlet.upper() + '_L2_' + var.upper() + '_'
                 fget  = fhead + dget + '_ULB-LATMOS_' + verin + ftail
 

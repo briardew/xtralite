@@ -78,7 +78,7 @@ def split3hr(fin, date, **xlargs):
     for ic in range(8):
         vals = chunks[ic,:]
         hour = str(vals[0]).zfill(2)
-        ftmp = (xlargs['chunk'] + '/' + FHOUT + date + '_' + hour + 'z' +
+        ftmp = path.join(xlargs['chunk'], FHOUT + date + '_' + hour + 'z' +
             '.bit' + FTOUT)
 
         if int(vals[2]) != -1:
@@ -105,7 +105,7 @@ def paste6hr(date, dprv, **xlargs):
 
     jdnow = datetime.strptime(date, '%Y%m%d')
 
-    DIROUT = xlargs['chunk'] + '/Y' + str(jdnow.year)
+    DIROUT = path.join(xlargs['chunk'], 'Y' + str(jdnow.year))
 
     if VERBOSE: print('---')
     for nh in [-3, 3, 9, 15]:
@@ -141,6 +141,8 @@ def paste6hr(date, dprv, **xlargs):
             ds = xr.open_dataset(flist[0])
             dtype = ds[RECDIM].dtype
             ds.close()
+
+            pout = call(['mkdir', '-p', DIROUT])
 
             ds = xr.open_mfdataset(flist, mask_and_scale=False,
                combine='nested', concat_dim=RECDIM)
@@ -180,11 +182,10 @@ def chunk(**xlargs):
     dprv = str(jdprv.year) + str(jdprv.month).zfill(2) + str(jdprv.day).zfill(2)
     dnxt = str(jdnxt.year) + str(jdnxt.month).zfill(2) + str(jdnxt.day).zfill(2)
 
-    DIRIN  = xlargs['prep']  + '/Y' + str(jdnow.year)
-    DIROUT = xlargs['chunk'] + '/Y' + str(jdnow.year)
+    DIRIN = path.join(xlargs['prep'], 'Y' + str(jdnow.year))
 
-    flist = glob(DIRIN  + '/' + FHEAD + dget + '*' + FTAIL)
-    ftr   = xlargs['chunk'] + '/' + FHOUT + dnow + '.trans' + FTOUT
+    flist = glob(path.join(DIRIN, FHEAD + dget + '*' + FTAIL))
+    ftr = path.join(xlargs['chunk'], FHOUT + dnow + '.trans' + FTOUT)
 
     if 0 < len(flist):
         if VERBOSE: print('---')
@@ -193,7 +194,7 @@ def chunk(**xlargs):
         fin = sorted(flist, key=path.getmtime)[-1]
 
         print('Processing  ' + path.basename(fin))
-        pout = call(['mkdir', '-p', DIROUT])
+        pout = call(['mkdir', '-p', xlargs['chunk']])
 
 #       Convert data to standard format
         if VERBOSE:

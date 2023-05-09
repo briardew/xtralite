@@ -1,5 +1,5 @@
 '''
-Translate ACOS retrievals to xtralite
+Translate ACOS retrievals to CoDAS format
 '''
 # Copyright 2022 Brad Weir <briardew@gmail.com>. All rights reserved.
 # Licensed under the Apache License 2.0, which can be obtained at
@@ -52,7 +52,7 @@ def _generic(dd):
     return dd
 
 def gosat(fin, ftr):
-    '''Translate ACOS XCO2 GOSAT retrievals to xtralite'''
+    '''Translate ACOS XCO2 GOSAT retrievals to CoDAS'''
 
 #   Open and add needed group vars
     dd = xr.open_dataset(fin)
@@ -95,8 +95,6 @@ def oco(fin, ftr):
     ddsnd = xr.open_dataset(fin, **{'group':'Sounding'})
     dd = dd.assign(ddret[['psurf', 'surface_type']])
     dd = dd.assign(ddsnd[['operation_mode']])
-    ddret.close()
-    ddsnd.close()
 
 #   Do generic stuff
     dd = _generic(dd)
@@ -105,6 +103,10 @@ def oco(fin, ftr):
     dd = dd.drop_vars(('vertex_latitude', 'vertex_longitude', 'vertices',
         'footprints', 'xco2_qf_simple_bitflag'), errors='ignore')
     dd.to_netcdf(ftr)
+
+#   Safer this way, crashes other ways on some machines
     dd.close()
+    ddret.close()
+    ddsnd.close()
 
     return None

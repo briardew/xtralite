@@ -11,8 +11,9 @@ European GHG (SCIAMACHY, GOSAT, etc.) product support for xtralite
 # Todo:
 #===============================================================================
 
-import datetime as dtm
 import sys
+from subprocess import call
+from datetime import datetime, timedelta
 
 # I think the former is a link to the latter
 #SERVE = 'https://data.ceda.ac.uk/neodc'
@@ -22,14 +23,15 @@ SERVE = 'https://dap.ceda.ac.uk/neodc'
 modlist  = ['besd', 'wfmd', 'imap', 'ocpr', 'leicester', 'uol']
 varlist  = ['co2', 'ch4']
 satlist  = ['sciam', 'gosat']
-satday0  = [dtm.datetime(2002,10, 1), dtm.datetime(2009, 4, 1)]
+satday0  = [datetime(2002,10, 1), datetime(2009, 4, 1)]
 # There are BESD XCO2 GOSAT retrievals somewhere that I can't find
 # Would only use for NRT
 namelist = ['besd_co2_sciam', 'wfmd_co2_sciam', 'wfmd_ch4_sciam',
     'imap_ch4_sciam', 'ocpr_ch4_gosat', 'leicester_ch4_gosat', 'uol_ch4_gosat']
 
 def setup(**xlargs):
-    from xtralite.retrievals import default
+    from . import default
+    from .translators.euroghg import translate
 
 #   Make everything sit in euroghg directory
     xlargs['head'] = xlargs.get('head', './data/euroghg')
@@ -39,10 +41,6 @@ def setup(**xlargs):
     return xlargs
 
 def build(**xlargs):
-    from subprocess import call
-    from os.path import expanduser
-    from xtralite.retrievals.translate.euroghg import translate
-
 #   Get retrieval arguments
     mod = xlargs.get('mod', '*')
     var = xlargs.get('var', '*')
@@ -59,8 +57,8 @@ def build(**xlargs):
     if satlo[:3] == 'sci': satlo = 'sciam'
 
 #   Determine timespan
-    jdbeg = xlargs.get('jdbeg', dtm.datetime(1980, 1, 1))
-    jdend = xlargs.get('jdend', dtm.datetime.now())
+    jdbeg = xlargs.get('jdbeg', datetime(1980, 1, 1))
+    jdend = xlargs.get('jdend', datetime.now())
     ndays = (jdend - jdbeg).days + 1
 
 #   Set version (ver) and archive directory (ardir) based on retrieval
@@ -120,7 +118,7 @@ def build(**xlargs):
 #   Download
     wgargs = xlargs.get('wgargs', None)
     for nd in range(ndays):
-        jdnow = jdbeg + dtm.timedelta(nd)
+        jdnow = jdbeg + timedelta(nd)
         yrnow = str(jdnow.year)
         yrget = str(jdnow.year)
         dget = yrget + str(jdnow.month).zfill(2) + str(jdnow.day).zfill(2)

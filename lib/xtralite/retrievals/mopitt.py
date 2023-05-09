@@ -11,27 +11,29 @@ MOPITT support for xtralite
 # Todo:
 #===============================================================================
 
-import datetime as dtm
 import sys
-from . import default
+from os import path
+from subprocess import call
+from datetime import datetime, timedelta
 
 VERBOSE = True
 DEBUG   = True
 
 SERVE = 'https://l5ftl01.larc.nasa.gov/ops/misrl2l3/MOPITT'
 # Does this change?
-JNRT = dtm.datetime(2021, 3,24)
+JNRT = datetime(2021, 3,24)
 
 # Cheese stands alone
 VERNUM   = 9
 modname  = 'mopitt'
 varlist  = ['tir', 'nir']
 satlist  = ['terra']
-satday0  = [dtm.datetime(2000, 3, 1)]
+satday0  = [datetime(2000, 3, 1)]
 namelist = [modname + '_' + vv for vv in varlist]
 
 def setup(**xlargs):
-    from .translate.mopitt import translate
+    from . import default
+    from .translators.mopitt import translate
 
     xlargs['mod'] = xlargs.get('mod', modname)
     xlargs['ftail'] = '.he5'
@@ -45,9 +47,6 @@ def setup(**xlargs):
     return xlargs
 
 def build(**xlargs):
-    from subprocess import call
-    from os.path import expanduser
-
 #   Get retrieval arguments
     mod = xlargs.get('mod', '*')
     var = xlargs.get('var', '*')
@@ -56,12 +55,12 @@ def build(**xlargs):
 
 #   Determine timespan
     jdbeg = xlargs.get('jdbeg', min(satday0))
-    jdend = xlargs.get('jdend', dtm.datetime.now())
+    jdend = xlargs.get('jdend', datetime.now())
     ndays = (jdend - jdbeg).days + 1
 
 #   Download
     for nd in range(ndays):
-        jday = jdbeg + dtm.timedelta(nd)
+        jday = jdbeg + timedelta(nd)
         yget = str(jday.year)
         dget = yget + str(jday.month).zfill(2) + str(jday.day).zfill(2)
         fget = '*-' + dget + '-*' + xlargs['ftail']
@@ -91,8 +90,8 @@ def build(**xlargs):
         xlargs['prep'] = xlargs['daily']
         xlargs['fhout'] = mod + '_' + var + '_' + veruse + '.'
 
-        cmd = (['wget', '--load-cookies', expanduser('~/.urs_cookies'),
-            '--save-cookies', expanduser('~/.urs_cookies'),
+        cmd = (['wget', '--load-cookies', path.expanduser('~/.urs_cookies'),
+            '--save-cookies', path.expanduser('~/.urs_cookies'),
             '--auth-no-challenge=on', '--keep-session-cookies',
             '--content-disposition'] + xlargs['wgargs'] +
             [SERVE + '/' + ardir + '/' + jday.strftime('%Y.%m.%d') + '/',
