@@ -137,12 +137,12 @@ def paste6hr(date, dprv, **xlargs):
         if not path.isfile(fout) or xlargs.get('repro',False):
             if VERBOSE: print('Writing ' + path.basename(fout))
 
+            pout = call(['mkdir', '-p', DIROUT])
+
             # An unfortunate hack to keep RECDIM dtype constant
             ds = xr.open_dataset(flist[0])
             dtype = ds[RECDIM].dtype
             ds.close()
-
-            pout = call(['mkdir', '-p', DIROUT])
 
             ds = xr.open_mfdataset(flist, mask_and_scale=False,
                combine='nested', concat_dim=RECDIM)
