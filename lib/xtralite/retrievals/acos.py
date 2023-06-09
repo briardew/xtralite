@@ -73,6 +73,7 @@ def setup(**xlargs):
     xlargs['fhead']  = sax + '_LtCO2_'
     xlargs['fhout']  = sax + '_' + ver + '_LtCO2_'
     xlargs['ftail']  = '.nc4'
+    xlargs['ftout']  = '.nc4'
     xlargs['yrdigs'] = 2
     xlargs['recdim'] = 'sounding_id'
     xlargs['tname']  = 'sounding_time'

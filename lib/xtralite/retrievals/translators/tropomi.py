@@ -9,6 +9,8 @@ Translate TROPOMI retrievals to CoDAS format
 # 2022/04/26	Initial commit
 #
 # Todo:
+# * Better handling of missing_value/_FillValue. Right now basically assumes
+#   all data is valid
 #===============================================================================
 
 import numpy as np
@@ -18,8 +20,9 @@ def _generic_beg(dd):
     '''Does generic stuff at beginning'''
 
 #   Rename dimensions and variables
-    dd = dd.rename({'sounding':'nsound', 'layer':'navg', 'date':'date_components',
-        'time':'time_offset', 'latitude':'lat', 'longitude':'lon'})
+    dd = dd.rename({'sounding':'nsound', 'layer':'navg',
+        'date':'date_components', 'time':'time_offset', 'latitude':'lat',
+        'longitude':'lon'})
 
 #   Create date and time variables
     dvec = dd.variables['date_components'].values.astype('int32')
@@ -41,11 +44,20 @@ def _generic_beg(dd):
 def _generic_end(dd):
     '''Does generic stuff at end'''
 
+#   Create prior column if prior profile exists
+    if 'priorpro' in dd.variables:
+        apro = dd.variables['priorpro']
+        acol = np.sum(apro.values, axis=1)
+        attrs = {'units':'mol m-2', 'long_name':'total column a priori'}
+        dd = dd.assign(priorobs=('nsound', acol, attrs))
+
 #   Drop leftover variables
     dd = dd.drop_vars(('sounding_id', 'date_components', 'time_offset',
         'qa_value', 'footprint', 'surface_classification',
         'surface_pressure', 'solar_zenith_angle', 'processing_quality_flags'))
+
 #   Drop leftover attributes too?
+#   Will need to drop variable attributes that are no longer valid
 
     return dd
 
@@ -103,13 +115,21 @@ def translate_ch4(fin, ftr):
 
 #   Convert obs and uncert to mol m-2
 #   (avgker has units of "1", so seems legit?)
-    dry  = dd.variables['dry_air_subcolumns']
+    dry = dd.variables['dry_air_subcolumns']
+
     xcol = dd.variables['obs']
-    ucol = dd.variables['uncert']
-    xcol.attrs['units'] = 'mol m-2'
-    ucol.attrs['units'] = 'mol m-2'
     xcol.values = 1.e-9 * xcol.values * np.sum(dry.values, axis=1)
+    xcol.attrs['units'] = 'mol m-2'
+    xcol.attrs['standard_name'] = 'atmosphere_mole_content_of_methane'
+    xcol.attrs['long_name'] = 'Vertically integrated CH4 column'
+
+    ucol = dd.variables['uncert']
     ucol.values = 1.e-9 * ucol.values * np.sum(dry.values, axis=1)
+    ucol.attrs['units'] = 'mol m-2'
+    ucol.attrs['standard_name'] = ('atmosphere_mole_content_of_methane ' +
+        'standard_error')
+    ucol.attrs['long_name'] = ('Standard error of the vertically ' +
+        'integrated CH4 column')
 
 #   Drop leftover variables
     dd = dd.drop_vars(('dry_air_subcolumns', 'methane_mixing_ratio'))
