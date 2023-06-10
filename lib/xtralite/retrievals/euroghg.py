@@ -68,7 +68,7 @@ def build(**xlargs):
                 'available for SCIAMACHY CO2\n')
             return xlargs
         if ver == '*': ver = 'v02.01.02r'
-        ardir = 'esacci/ghg/data/crdp_4/SCIAMACHY/CO2_SCI_BESD/' + ver
+        ardir = 'esacci/ghg/data/crdp_4/SCIAMACHY/CO2_SCI_BESD/' + ver[:-1]
         fhead = 'ESACCI-GHG-L2-CO2-SCIAMACHY-BESD-'
 
     elif modlo == 'wfmd':
@@ -78,7 +78,7 @@ def build(**xlargs):
             return xlargs
         if ver == '*': ver = 'v4.0r'
         ardir = ('esacci/ghg/data/crdp_4/SCIAMACHY/' + var.upper() +
-            '_SCI_WFMD/' + ver)
+            '_SCI_WFMD/' + ver[:-1])
         fhead = 'ESACCI-GHG-L2-' + var.upper() + '-SCIAMACHY-WFMD-'
 
     elif modlo == 'imap':
@@ -87,7 +87,7 @@ def build(**xlargs):
                 ' available for SCIAMACHY CH4\n')
             return xlargs
         if ver == '*': ver = 'v7.2r'
-        ardir = 'esacci/ghg/data/crdp_4/SCIAMACHY/CH4_SCI_IMAP/' + ver
+        ardir = 'esacci/ghg/data/crdp_4/SCIAMACHY/CH4_SCI_IMAP/' + ver[:-1]
         fhead = 'ESACCI-GHG-L2-CH4-SCIAMACHY-IMAP-'
 
     elif modlo in ['leicester', 'uol', 'ocpr']:
