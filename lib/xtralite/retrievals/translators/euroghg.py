@@ -1,5 +1,5 @@
 '''
-Translate European GHG retrievals to xtralite
+Translate European GHG retrievals to CoDAS format
 '''
 # Copyright 2022 Brad Weir <briardew@gmail.com>. All rights reserved.
 # Licensed under the Apache License 2.0, which can be obtained at
@@ -11,15 +11,15 @@ Translate European GHG retrievals to xtralite
 # Todo:
 #===============================================================================
 
-import datetime as dtm
 import numpy as np
 import netCDF4
 from subprocess import check_call
+from datetime import datetime, timedelta
 
 RECDIM = 'nsound'
 
 def translate(fin, ftr, var):
-    '''Translate European GHG retrievals to xtralite'''
+    '''Translate European GHG retrievals to CoDAS format'''
 
     import subprocess
 
@@ -70,7 +70,7 @@ def translate(fin, ftr, var):
     times = ncf.createVariable('time', 'i4', (RECDIM,))
     secs = ncf.variables['time_offset'][:]
     for nn in range(len(secs)):
-        tt = dtm.datetime(1970,1,1) + dtm.timedelta(seconds=secs[nn])
+        tt = datetime(1970,1,1) + timedelta(seconds=secs[nn])
         dates[nn] = tt.day    + tt.month*100  + tt.year*10000
         times[nn] = tt.second + tt.minute*100 + tt.hour*10000
 

@@ -19,19 +19,18 @@ from datetime import datetime, timedelta
 #SERVE = 'https://data.ceda.ac.uk/neodc'
 SERVE = 'https://dap.ceda.ac.uk/neodc'
 
-# leicester, uol, and ocpr are different names for same thing
-modlist  = ['besd', 'wfmd', 'imap', 'ocpr', 'leicester', 'uol']
+# leic(ester), uol, and ocpr are different names for same thing
+modlist  = ['besd', 'wfmd', 'imap', 'ocpr', 'leic', 'uol']
 varlist  = ['co2', 'ch4']
 satlist  = ['sciam', 'gosat']
 satday0  = [datetime(2002,10, 1), datetime(2009, 4, 1)]
 # There are BESD XCO2 GOSAT retrievals somewhere that I can't find
 # Would only use for NRT
 namelist = ['besd_co2_sciam', 'wfmd_co2_sciam', 'wfmd_ch4_sciam',
-    'imap_ch4_sciam', 'ocpr_ch4_gosat', 'leicester_ch4_gosat', 'uol_ch4_gosat']
+    'imap_ch4_sciam', 'ocpr_ch4_gosat', 'leic_ch4_gosat', 'uol_ch4_gosat']
 
 def setup(**xlargs):
     from . import default
-    from .translators.euroghg import translate
 
 #   Make everything sit in euroghg directory
     xlargs['head'] = xlargs.get('head', './data/euroghg')
@@ -41,6 +40,8 @@ def setup(**xlargs):
     return xlargs
 
 def build(**xlargs):
+    from .translators.euroghg import translate
+
 #   Get retrieval arguments
     mod = xlargs.get('mod', '*')
     var = xlargs.get('var', '*')
@@ -90,7 +91,7 @@ def build(**xlargs):
         ardir = 'esacci/ghg/data/crdp_4/SCIAMACHY/CH4_SCI_IMAP/' + ver[:-1]
         fhead = 'ESACCI-GHG-L2-CH4-SCIAMACHY-IMAP-'
 
-    elif modlo in ['leicester', 'uol', 'ocpr']:
+    elif modlo in ['leic', 'uol', 'ocpr']:
         if varlo != 'ch4' or satlo != 'gosat':
             sys.stderr.write('*** WARNING *** Leicester retrieval only ' +
                 'available for GOSAT CH4\n')

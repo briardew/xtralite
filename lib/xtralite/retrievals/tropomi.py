@@ -9,6 +9,8 @@ TROPOMI support for xtralite
 # * Pressure/altitude grid
 # * Only works with RMORBS on, I think because the overlapping _two files
 #   don't get updated properly
+# * Fix attributes
+# * Move to native xarray (drop NCO and netCDF4 use)
 #
 # Notes:
 # * CO is on a fixed altitude grid that's something like every 500 m
@@ -154,14 +156,6 @@ def build(**xlargs):
         dnow = yrnow + str(jdnow.month).zfill(2) + str(jdnow.day).zfill(2)
 
 #       Set version based on date (see product readme)
-#       Not exactly right, but ok-ish
-#       vernow = 'v1L'
-#       if datetime(2019, 8, 6) <= jdnow:
-#           vernow = 'v1H'
-#       elif datetime(2021, 7, 1) <= jdnow:
-#           vernow = 'v2r'
-#       elif datetime(2021, 8, 4) <= jdnow:
-#           vernow = 'v2f'
         vernow = 'v2r'
         if datetime(2021, 8, 4) <= jdnow: vernow = 'v2f'
 
@@ -250,7 +244,7 @@ def build(**xlargs):
 #           empty file with just the dimensions we need (ftwo)
             pout = call(['ncks', '-O', '-3', '-G', ':', '-g', 'PRODUCT',
                 '-v', ','.join(vnames), ff, fone])
-            pout = call(['ncwa', '-O', '-a', 'time', fone, fone])
+            pout = call(['ncwa', '-O', '--no_cll_mth', '-a', 'time', fone, fone])
             pout = call(['ncks', '-O', '-3', '-v', ','.join(dnames), fone, ftwo])
             if len(vnames0d) > 0:
                 pout = call(['ncks', '-A', '-v', ','.join(vnames0d), fone, ftwo])

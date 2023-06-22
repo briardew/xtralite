@@ -1,5 +1,5 @@
 '''
-Translate TROPESS retrievals to xtralite
+Translate TROPESS retrievals to CoDAS format
 '''
 # Copyright 2022 Brad Weir <briardew@gmail.com>. All rights reserved.
 # Licensed under the Apache License 2.0, which can be obtained at
@@ -11,143 +11,126 @@ Translate TROPESS retrievals to xtralite
 # Todo:
 #===============================================================================
 
-import datetime as dtm
 import numpy as np
 import xarray as xr
-import netCDF4
-from subprocess import check_call
 
-RECDIM = 'nsound'
+PROUNIT = 'log10(mol/mol)'
+OBSUNIT = 'mol/m^2'
+OBSCONV = 1.0E5/(9.80665*28.965)
+
+L10EXP = np.log10(np.exp(1.))
+
 FILLSING = np.float32(-999.)
 FILLINT  = np.int32(-999)
-OBSUNITS = 'mol mol-1'
 
 def translate(fin, ftr):
-    '''Translate TROPESS retrievals to xtralite'''
-    ftmp = ftr + '.tmp'
+    '''Translate TROPESS retrievals to CoDAS format'''
 
-#   1. Flatten (and remove) groups
-    pout = check_call(['ncks', '-O', '-x', '-g', 'geolocation',
-        '-G', ':', fin, ftmp])
+    ds = xr.open_dataset(fin, mask_and_scale=False)
+    dsobs = xr.open_dataset(fin, **{'group':'observation_ops'})
+    ds = ds.assign(dsobs[['xa']])
 
-#   2. Rename dimensions and variables
-    pout = check_call(['ncrename', '-O',
-        '-d', 'target,'+RECDIM,
-        '-d', 'level,navg',
-        '-v', 'time,time_offset',
-        '-v', 'latitude,lat',
-        '-v', 'longitude,lon',
-        '-v', 'xa,priorpro', ftmp, ftmp])
+    ds = ds.rename({'target':'nsound', 'level':'navg', 'time':'time_offset',
+        'latitude':'lat', 'longitude':'lon', 'xa':'priorpro'})
 
-    ncf = netCDF4.Dataset(ftmp, 'a') 
+    # Assign averaging kernel edge dimension (nedge) and pressures (peavg)
+    pbotin = ds['pressure'].values
+    NSOUND = ds.sizes['nsound']
+    NAVG = ds.sizes['navg']
 
-#   Assume pressures are bottoms and top is zero
-    pbotin = ncf.variables['pressure'][:]
-    numsnd = pbotin[:].shape[0]
-    numavg = pbotin[:].shape[1]
+    ## Assume pressures are bottoms and top is 0.01 hPa
+    ## *** SORT THIS OUT ***
+    peavg = np.append(pbotin, 0.01*np.ones((NSOUND,1)), 1).astype(FILLSING.dtype)
+    ## Fill
+    for kk in reversed(range(NAVG)):
+        inan = peavg[:,kk] == ds['pressure'].attrs['_FillValue']
+        peavg[inan,kk] = peavg[inan,kk+1]
 
-#   3. Create pressure edges of averaging kernel (peavg), pressure
-#   thickness (dpavg), and pressure weighting function (pwf)
-    nedge = ncf.createDimension('nedge', numavg+1)
-    peavg = ncf.createVariable('peavg', 'float32', (RECDIM,'nedge'),
-        fill_value=FILLSING)
-    peavg.units = 'hPa'
-    peavg.long_name = 'Edge pressures of averaging kernel'
-    peavg.missing_value = FILLSING
-#   Would be nice to sort this out
-    peavg[:] = np.append(pbotin, 0.01*np.ones((numsnd,1)), 1)
+    ds = ds.assign(nedge=('nedge', np.arange(NAVG+1, dtype=FILLINT.dtype),
+        {'units':'#', 'long_name':'vertical grid edge number'}))
+    ds = ds.assign(peavg=(('nsound','nedge'), peavg, {'units':'hPa',
+        'long_name':'Edge pressures of averaging kernel',
+        '_FillValue':FILLSING, 'missing_value':FILLSING}))
 
+    # Compute pressure thickness (dpavg) and pressure weighting function (pwf)
     dpavg = peavg[:,:-1] - peavg[:,1:]
-    dpavg.mask = pbotin.mask
+    pwf = OBSCONV * dpavg
 
-    pwf = np.zeros_like(dpavg)
-    for kk in range(numavg):
-        pwf[:,kk] = dpavg[:,kk] / np.sum(dpavg, axis=1)
-    pwf.mask = dpavg.mask
+    # Assign column obs (obs), a priori (priorpro), and uncertainty (uncert)
+    obspro = ds['x'].values
+    obs = np.sum(pwf*obspro, axis=1)
 
-#   4. Create column obs (obs), a priori (priorpro), and
-#   uncertainty (uncert)
-    obspro = ncf.variables['x']
-    obs = ncf.createVariable('obs', 'float32', (RECDIM,),
-        fill_value=FILLSING)
-    obs.units = OBSUNITS
-    obs.long_name = 'Average column observation'
-    obs.missing_value = FILLSING
-    obs[:] = np.sum(pwf[:,:]*obspro[:,:], axis=1)
+    priorpro = ds['priorpro'].values
+    ## hack to deal with no missing/fill value
+    priorpro[np.isnan(priorpro)] = np.finfo(priorpro.dtype).tiny
+    priorobs = np.sum(pwf*priorpro, axis=1)
 
-    priorpro = ncf.variables['priorpro']
-    priorobs = ncf.createVariable('priorobs', 'float32', (RECDIM,),
-        fill_value=FILLSING)
-    priorobs.units = OBSUNITS
-    priorobs.long_name = 'Average column a priori'
-    priorobs.missing_value = FILLSING
-    priorobs[:] = np.sum(pwf[:,:]*priorpro[:,:], axis=1)
-
-#   Appears broken for CO: Should be -20s, but is O(1)
-    uncpro = ncf.variables['observation_error']
-#   Correct overflow (why?!?)
+    ## Appears broken for CO: Should be -20s, but is O(1)
+    uncpro = dsobs['observation_error'].values
+    ## Correct overflow (why?!?)
     uncpro = np.minimum(uncpro, np.finfo(uncpro.dtype).max)
-    uncert = ncf.createVariable('uncert', 'float32', (RECDIM,),
-        fill_value=FILLSING)
-    uncert.units = OBSUNITS
-    uncert.long_name = 'Average column uncertainty'
-    uncert.missing_value = FILLSING
-    uncert[:] = 0.
-    for kk in range(numavg):
-        uncert[:] = uncert[:] + np.sum(pwf*obspro*uncpro[:,:,kk], axis=1)
+    uncert = np.zeros_like(obs)
+    for kk in range(NAVG):
+        uncert = uncert + np.sum(pwf*obspro*uncpro[:,:,kk], axis=1)
 
-#   5. Create column averaging kernel (avgker)
-    avgkin = ncf.variables['averaging_kernel'][:]
-    avgker = ncf.createVariable('avgker', 'float32', (RECDIM,'navg'),
-        fill_value=FILLSING)
-    avgker.units = OBSUNITS + ' / ' + OBSUNITS
-    avgker.long_name = 'Averaging kernel'
-    avgker.missing_value = FILLSING
-    avgker[:] = np.zeros_like(dpavg)
+    ds = ds.assign(obs=('nsound', obs, {'units':OBSUNIT,
+        'long_name':'Average column observation', '_FillValue':FILLSING,
+        'missing_value':FILLSING}))
+    ds = ds.assign(priorobs=('nsound', priorobs, {'units':OBSUNIT,
+        'long_name':'Average column a priori', '_FillValue':FILLSING,
+        'missing_value':FILLSING}))
+    ds = ds.assign(uncert=('nsound', uncert, {'units':OBSUNIT,
+        'long_name':'Average column uncertainty', '_FillValue':FILLSING,
+        'missing_value':FILLSING}))
 
-#   Check averaging kernel transpose & correct log transform
-#   Should be both multiplying by obspro and dividing by ...?
-#   Maybe keep this in ln?
-    for kk in range(numavg):
-#       avgker[:] = avgker[:] + pwf*obspro*avgkin[:,:,kk]
-        avgadd = pwf*obspro*avgkin[:,:,kk]
-        for jj in range(numavg):
-            avgadd[:,jj] = avgadd[:,jj]/priorpro[:,jj]
-        avgker[:] = avgker[:] + avgadd
-    avgker[:].mask = pwf.mask
+    # Assign column averaging kernel (avgker)
+    avgkin = dsobs['averaging_kernel'].values
+    avgker = np.zeros_like(pwf)
 
-#   6. Create sounding_date and sounding_time variables
-#   Could change to datetime_utc
-    dvecs = ncf.variables['datetime_utc'][:]
-    dates = ncf.createVariable('date', 'int32', (RECDIM,), fill_value=FILLINT)
-    times = ncf.createVariable('time', 'int32', (RECDIM,), fill_value=FILLINT)
+    ## Check averaging kernel transpose & correct log transform
+    ## Should be both multiplying by obspro and dividing by ...?
+    for ii in range(NAVG):
+        avgadd = pwf*avgkin[:,:,ii]*obspro/L10EXP
+#       for jj in range(NAVG):
+#           avgadd[:,jj] = avgadd[:,jj]/priorpro[:,jj]*L10EXP
+        avgker = avgker + avgadd
 
-    dates.units = 'yyyymmdd'
-    times.units = 'HHMMSS'
-    dates.long_name = 'Sounding date'
-    times.long_name = 'Sounding time'
-    dates.missing_value = FILLINT
-    times.missing_value = FILLINT
+    ds = ds.assign(avgker=(('nsound','navg'), avgker,
+        {'units':OBSUNIT+' / '+PROUNIT, 'long_name':'Averaging kernel',
+        '_FillValue':FILLSING, 'missing_value':FILLSING}))
 
-    dates[:] = dvecs[:,0]*10000 + dvecs[:,1]*100 + dvecs[:,2]
-    times[:] = dvecs[:,3]*10000 + dvecs[:,4]*100 + dvecs[:,5]
+    # Convert prior profile from mol/mol to log10(mol/mol)
+    ds['priorpro'].values = np.log10(priorpro)
+    ds['priorpro'].attrs['units'] = PROUNIT
+    ds['priorpro'].attrs['comment'] = 'A priori profile'
 
-    ncf.close()
+    # Assign date and time
+    dvecs = ds['datetime_utc'].values.astype(FILLINT.dtype)
 
-#   7. Delete extra variables and convert back to netCDF4
-    pout = check_call(['ncks', '-O', '-x', '-v', 'datetime_utc,' +
-        'time_offset,year_fraction,average_cloud_eod,cloud_top_pressure,' +
-        'pressure,altitude,air_density,surface_temperature,signal_dof,' +
-        'averaging_kernel,observation_error,x_test,x_raw,x', ftmp, ftmp])
+    date = dvecs[:,0]*10000 + dvecs[:,1]*100 + dvecs[:,2]
+    time = dvecs[:,3]*10000 + dvecs[:,4]*100 + dvecs[:,5]
 
-#   8. Sort
-    ds = xr.open_dataset(ftmp, mask_and_scale=False)
+    ## Is this even needed?
+    inan = np.logical_or.reduce(
+        dvecs == ds['datetime_utc'].attrs['_FillValue'], 1)
+    date[inan] = FILLINT
+    time[inan] = FILLINT
+
+    ds = ds.assign(date=('nsound', date, {'units':'YYYYMMDD',
+        'long_name':'sounding date', '_FillValue':FILLINT}))
+    ds = ds.assign(time=('nsound', time, {'units':'hhmmss',
+        'long_name':'sounding date', '_FillValue':FILLINT}))
+
+    # Sort (why?!?)
     ds = ds.sortby('time')
+
+    # Finish up
+    ds = ds.drop(('datetime_utc', 'time_offset', 'year_fraction', 'pressure',
+        'altitude', 'x'))
+
     ds.to_netcdf(ftr)
+    ## Safer this way, crashes other ways on some machines
     ds.close()
-
-    pout = check_call(['rm', ftmp])
-
-#   Land flag is really an int64?
+    dsobs.close()
 
     return None

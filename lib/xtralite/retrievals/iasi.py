@@ -26,20 +26,16 @@ namelist = ['iasi_' + vv for vv in varlist]
 
 def setup(**xlargs):
     from . import default
-#   from .translators import iasi as translate
+    from .translators.iasi import translate
 
     xlargs = default.setup(**xlargs)
 
-#   var = xlargs.get('var', '*')
-#   ver = xlargs.get('ver', '*')
-#   key = (var + '_' + ver).lower()
-#   if '*' not in key: xlargs['translate'] = translate[key]
+    var = xlargs.get('var', '*')
+    if '*' not in var: xlargs['translate'] = translate[var.lower()]
 
     return xlargs
 
 def build(**xlargs):
-#   from .translators import iasi as translate
-
     mod = xlargs.get('mod', '*')
     var = xlargs.get('var', '*')
     sat = xlargs.get('sat', '*')
@@ -89,35 +85,23 @@ def build(**xlargs):
 
 #       Someone always has to be special
         if varlo == 'co':
-            verin  = 'v20100815'
-            verout = 'v2010f'
-            if datetime(2014, 9,30) <= jdnow:
-                verin  = 'v20140922'
-                verout = 'v2014f'
+            verin  = 'v20151001'
+            verbug = 'V20151001.0'
+            verout = 'v2015r'
             if datetime(2019, 5,14) <= jdnow:
-                verin  = 'v20151001'
-                verout = 'v2015f'
-            if datetime(2019,12, 4) <= jdnow:
+                verin  = 'V6.4.0'
+                verbug = verin
+                verout = 'v6.4f'
+            if datetime(2019,12, 5) <= jdnow:
                 verin  = 'V6.5.0'
+                verbug = verin
                 verout = 'v6.5f'
 
-            if satlet == 'a':
-                fhead =  'iasi_' + var.upper() + '_LATMOS_ULB_'
-                ftail = '.txt'
-                fget  = fhead + dget + '_' + verin + ftail
-            else:
-                fhead = ('iasi_' + var.upper() + '_LATMOS_ULB_metop' +
-                    satlet + '_')
-                ftail = '.txt'
-                fget  = fhead + dget + '_' + verin + ftail
-
-            if datetime(2019,12, 4) <= jdnow:
-                fhead = 'IASI_METOP' + satlet.upper() + '_L2_' + var.upper() + '_'
-                fget  = fhead + dget + '_ULB-LATMOS_' + verin + ftail
+            fhead = 'IASI_METOP' + satlet.upper() + '_L2_' + var.upper() + '_'
+            fget  = fhead + dget + '_ULB-LATMOS_' + verbug + ftail
 
 #       Set and check version
-        veruse = ver
-        if ver == '*': veruse = verout
+        veruse = verout if ver == '*' else ver
 
         if veruse.lower() != verout.lower():
             sys.stderr.write(("*** WARNING *** Specified version (%s) " +
@@ -139,7 +123,6 @@ def build(**xlargs):
         xlargs['fhead'] = fhead
         xlargs['ftail'] = ftail
         xlargs['fhout'] = mod + '_' + var + '_' + sat + '_' + veruse + '.'
-#       xlargs['translate'] = translate.iasi[varlo + '_' + veruse.lower()]
 
 #       Download daily files
         cmd = (['wget', '--no-check-certificate'] + wgargs +

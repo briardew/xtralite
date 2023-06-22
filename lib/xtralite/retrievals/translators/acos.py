@@ -16,15 +16,14 @@ import numpy as np
 from xtralite.patches import xarray as xr
 
 def _generic(dd):
-#   Rename dims and vars
     dd = dd.rename({'xco2':'xco2_final', 'xco2_uncertainty':'xco2_uncert',
         'xco2_averaging_kernel':'xco2_avgker', 'xco2_quality_flag':'qcflag',
         'pressure_weight':'pwf'})
 
-#   Do anything to sounding_id and levels dims?
+    # Do anything to sounding_id and levels dims?
     dd['sounding_id'] = dd['sounding_id'].astype('int32')
 
-#   Create date and time vars
+    # Assign date and time vars
     dvec = dd['date'].values.astype('int32')
     nsound = dd.sizes['sounding_id']
 
@@ -39,12 +38,11 @@ def _generic(dd):
     dd = dd.assign(sounding_time=('sounding_id', time, {'units':'hhmmss',
         'long_name':'sounding time', 'missing_value':np.int32(-9999)}))
 
-#   Replace averaging kernel with product of it and pwf
+    # Replace averaging kernel with product of it and pwf
     pwf    = dd['pwf']
     avgker = dd['xco2_avgker']
     avgker.values = avgker.values*pwf.values
 
-#   Drop common vars
     dd = dd.drop_vars(('bands', 'date', 'time', 'solar_zenith_angle',
         'sensor_zenith_angle', 'xco2_qf_bitflag', 'source_files',
         'file_index'))
@@ -52,9 +50,9 @@ def _generic(dd):
     return dd
 
 def gosat(fin, ftr):
-    '''Translate ACOS XCO2 GOSAT retrievals to CoDAS'''
+    '''Translate ACOS XCO2 GOSAT retrievals to CoDAS format'''
 
-#   Open and add needed group vars
+    # Open base and add needed group vars
     dd = xr.open_dataset(fin)
     ddret = xr.open_dataset(fin, **{'group':'Retrieval'})
     ddsnd = xr.open_dataset(fin, **{'group':'Sounding'})
@@ -63,10 +61,9 @@ def gosat(fin, ftr):
     ddret.close()
     ddsnd.close()
 
-#   Do generic stuff
     dd = _generic(dd)
 
-#   Translate gain to operation mode
+    # Translate gain to operation mode
     gain = dd['gain'].values
     nsound = dd.sizes['sounding_id']
     mode = 127*np.ones(nsound, dtype='int8')
@@ -79,32 +76,34 @@ def gosat(fin, ftr):
         'long_name':'GOSAT Operation Mode: 0=M-gain, 1=H-gain',
         'missing_value':np.int8(127), 'comment':''}))
 
-#   Drop vars, write, and close
     dd = dd.drop_vars(('gain'))
+
     dd.to_netcdf(ftr)
+    ## Safer this way, crashes other ways on some machines
     dd.close()
+    ddret.close()
+    ddsnd.close()
 
     return None
 
 def oco(fin, ftr):
-    '''Translate ACOS XCO2 OCO retrievals to xtralite'''
+    '''Translate ACOS XCO2 OCO retrievals to CoDAS format'''
 
-#   Open and add needed group vars
+    # Open base and add needed group vars
     dd = xr.open_dataset(fin)
     ddret = xr.open_dataset(fin, **{'group':'Retrieval'})
     ddsnd = xr.open_dataset(fin, **{'group':'Sounding'})
     dd = dd.assign(ddret[['psurf', 'surface_type']])
     dd = dd.assign(ddsnd[['operation_mode']])
 
-#   Do generic stuff
     dd = _generic(dd)
 
-#   Drop vars, write, and close
+    # Finish up (ignore errors from missing vars)
     dd = dd.drop_vars(('vertex_latitude', 'vertex_longitude', 'vertices',
         'footprints', 'xco2_qf_simple_bitflag'), errors='ignore')
-    dd.to_netcdf(ftr)
 
-#   Safer this way, crashes other ways on some machines
+    dd.to_netcdf(ftr)
+    ## Safer this way, crashes other ways on some machines
     dd.close()
     ddret.close()
     ddsnd.close()
