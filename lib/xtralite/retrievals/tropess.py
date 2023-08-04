@@ -1,7 +1,7 @@
 '''
 TROPESS (AIRS, CrIS) support for xtralite
 '''
-# Copyright 2022 Brad Weir <briardew@gmail.com>. All rights reserved.
+# Copyright 2022-2023 Brad Weir <briardew@gmail.com>. All rights reserved.
 # Licensed under the Apache License 2.0, which can be obtained at
 # http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -27,8 +27,8 @@ satday0 = [datetime(2021, 1, 1), datetime(2021, 1, 1), datetime(2021, 1, 1)]
 namelist = ['tropess_' + vv for vv in varlist]
 
 def setup(**xlargs):
-    from . import default
-    from .translators.tropess import translate
+    from xtralite.retrievals import default
+    from xtralite.translators.tropess import translate
 
 #   Hack for now/only ver
     xlargs['ver'] = xlargs.get('ver', 'v1f')
@@ -39,7 +39,7 @@ def setup(**xlargs):
 
     return xlargs
 
-def build(**xlargs):
+def acquire(**xlargs):
 #   Get retrieval arguments
     mod = xlargs.get('mod', '*')
     var = xlargs.get('var', '*')

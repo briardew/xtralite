@@ -2,7 +2,7 @@
 '''
 Entry point for xtralite module
 '''
-# Copyright 2022 Brad Weir <briardew@gmail.com>. All rights reserved.
+# Copyright 2022-2023 Brad Weir <briardew@gmail.com>. All rights reserved.
 # Licensed under the Apache License 2.0, which can be obtained at
 # http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -13,8 +13,9 @@ Entry point for xtralite module
 #===============================================================================
 
 import sys
-import datetime as dtm
+from datetime import datetime
 from argparse import ArgumentParser
+
 from xtralite import retrievals, build
 
 # Parse command-line options
@@ -33,12 +34,12 @@ parser.add_argument('name', help='name of products to build ' +
 parser.add_argument('--beg', help='begin date (default: %(default)s)',
     default='1980-01-01')
 parser.add_argument('--end', help='end date (default: %(default)s)',
-    default=dtm.datetime.now().strftime('%Y-%m-%d'))
+    default=datetime.now().strftime('%Y-%m-%d'))
 parser.add_argument('--codas', help='prepare for codas (default: false)',
     action='store_true')
 parser.add_argument('--repro', help='reprocess/overwrite (default: false)',
     action='store_true')
-parser.add_argument('--head', help='head data directory (default: ./data)')
+parser.add_argument('--head', help='head data directory (default: data)')
 parser.add_argument('--log', help='log file (default: stdout)')
 
 def main():

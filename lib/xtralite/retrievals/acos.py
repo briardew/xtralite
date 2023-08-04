@@ -1,7 +1,7 @@
 '''
 ACOS (GOSAT, OCO-2, OCO-3) support for xtralite
 '''
-# Copyright 2022 Brad Weir <briardew@gmail.com>. All rights reserved.
+# Copyright 2022-2023 Brad Weir <briardew@gmail.com>. All rights reserved.
 # Licensed under the Apache License 2.0, which can be obtained at
 # http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -18,7 +18,8 @@ from datetime import datetime, timedelta
 
 import numpy as np
 import netCDF4
-# xarray has a habit of recasting dimensions
+# stop xarray from recasting coordinates
+#import xarray as xr
 from xtralite.patches import xarray as xr
 
 SERVE = 'https://oco2.gesdisc.eosdis.nasa.gov/data'
@@ -26,10 +27,10 @@ SERVE = 'https://oco2.gesdisc.eosdis.nasa.gov/data'
 varlist = ['co2']
 satlist = ['gosat', 'oco2', 'oco3']
 satday0 = [datetime(2009, 4, 1), datetime(2014, 8, 1), datetime(2019, 8, 1)]
-namelist = satlist
+namelist = ['acos_' + ss for ss in satlist]
 
 def setup(**xlargs):
-    from .translators import acos as translate
+    from xtralite.translators import acos as translate
 
 #   Parse name into satellite, version, etc.
     name = xlargs['name']
@@ -41,7 +42,7 @@ def setup(**xlargs):
     sax = sat if sat != 'gosat' else 'acos'
     if len(ver) == 0:
         if sat == 'gosat': ver = 'v9r'
-        if sat == 'oco2':  ver = 'v11r'
+        if sat == 'oco2':  ver = 'v11.1r'
         if sat == 'oco3':  ver = 'v10.4r'
 
     xlargs['sat'] = sat
@@ -180,7 +181,7 @@ def prep(fname, sat, ver):
     print('')
     return None
 
-def build(**xlargs):
+def acquire(**xlargs):
 #   Timespan
     jdbeg = xlargs.get('jdbeg', datetime(1980, 1, 1))
     jdend = xlargs.get('jdend', datetime.now())

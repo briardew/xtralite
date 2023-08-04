@@ -1,7 +1,7 @@
 '''
 European GHG (SCIAMACHY, GOSAT, etc.) product support for xtralite
 '''
-# Copyright 2022 Brad Weir <briardew@gmail.com>. All rights reserved.
+# Copyright 2022-2023 Brad Weir <briardew@gmail.com>. All rights reserved.
 # Licensed under the Apache License 2.0, which can be obtained at
 # http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -12,6 +12,7 @@ European GHG (SCIAMACHY, GOSAT, etc.) product support for xtralite
 #===============================================================================
 
 import sys
+from os import path
 from subprocess import call
 from datetime import datetime, timedelta
 
@@ -30,18 +31,21 @@ namelist = ['besd_co2_sciam', 'wfmd_co2_sciam', 'wfmd_ch4_sciam',
     'imap_ch4_sciam', 'ocpr_ch4_gosat', 'leic_ch4_gosat', 'uol_ch4_gosat']
 
 def setup(**xlargs):
-    from . import default
+    from xtralite.retrievals import default
+    from xtralite.translators.euroghg import translate
 
-#   Make everything sit in euroghg directory
-    xlargs['head'] = xlargs.get('head', './data/euroghg')
+    # Make everything sit in euroghg directory
+    xlargs['head'] = xlargs.get('head', path.join('data', 'euroghg'))
 
     xlargs = default.setup(**xlargs)
 
+    var = xlargs.get('var', '*')
+    if '*' not in var:
+        xlargs['translate'] = lambda fin, ftr: translate(fin, ftr, var)
+
     return xlargs
 
-def build(**xlargs):
-    from .translators.euroghg import translate
-
+def acquire(**xlargs):
 #   Get retrieval arguments
     mod = xlargs.get('mod', '*')
     var = xlargs.get('var', '*')
@@ -101,16 +105,13 @@ def build(**xlargs):
         fhead = 'UoL-GHG-L2-CH4-GOSAT-OCPR-'
 
 #   Set output directory
-    if '*' in xlargs['daily']:
-        xlargs['daily'] = (xlargs['head'] + '/' + mod + '/' + var +
+    xlargs['daily'] = (xlargs['head'] + '/' + mod + '/' + var +
             '/' + sat + '_' + ver + '_daily')
 
 #   Set codas keys
     if xlargs.get('codas',False):
-        xlargs['translate'] = lambda fin, ftr: translate(fin, ftr, var)
         xlargs['fhead'] = fhead
-        if '*' in xlargs.get('fhout','*'):
-            xlargs['fhout'] = mod + '_' + var + '_' + sat + '_' + ver + '.'
+        xlargs['fhout'] = mod + '_' + var + '_' + sat + '_' + ver + '.'
         if '*' in xlargs.get('chunk','*'):
             chops = xlargs['daily'].rsplit('_daily', 1)
             if len(chops) == 1: chops = chops + ['']

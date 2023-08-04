@@ -1,7 +1,7 @@
 '''
 MOPITT support for xtralite
 '''
-# Copyright 2022 Brad Weir <briardew@gmail.com>. All rights reserved.
+# Copyright 2022-2023 Brad Weir <briardew@gmail.com>. All rights reserved.
 # Licensed under the Apache License 2.0, which can be obtained at
 # http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -32,8 +32,8 @@ satday0  = [datetime(2000, 3, 1)]
 namelist = [modname + '_' + vv for vv in varlist]
 
 def setup(**xlargs):
-    from . import default
-    from .translators.mopitt import translate
+    from xtralite.retrievals import default
+    from xtralite.translators.mopitt import translate
 
     xlargs['mod'] = xlargs.get('mod', modname)
     xlargs['ftail'] = '.he5'
@@ -46,7 +46,7 @@ def setup(**xlargs):
 
     return xlargs
 
-def build(**xlargs):
+def acquire(**xlargs):
 #   Get retrieval arguments
     mod = xlargs.get('mod', '*')
     var = xlargs.get('var', '*')
@@ -84,8 +84,8 @@ def build(**xlargs):
 #       This should be done in setup or someting, super hokey
 #       Needs to be fixed everywhere (***FIXME***)
         if '*' in xlargs['daily']:
-            head = xlargs.get('head', './data')
-            xlargs['daily'] = (head + '/' + mod + '/' + 
+            head = xlargs.get('head', 'data')
+            xlargs['daily'] = path.join(head, mod, 
                 var + '_' + veruse + '_daily')
         xlargs['prep'] = xlargs['daily']
         xlargs['fhout'] = mod + '_' + var + '_' + veruse + '.'
@@ -95,7 +95,7 @@ def build(**xlargs):
             '--auth-no-challenge=on', '--keep-session-cookies',
             '--content-disposition'] + xlargs['wgargs'] +
             [SERVE + '/' + ardir + '/' + jday.strftime('%Y.%m.%d') + '/',
-            '-A', fget, '-P', xlargs['daily'] + '/Y' + yget])
+            '-A', fget, '-P', path.join(xlargs['daily'], 'Y'+yget)])
         if VERBOSE: print(' '.join(cmd))
         pout = call(cmd)        
 

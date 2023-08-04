@@ -1,7 +1,7 @@
 '''
 Initialize retrievals module
 '''
-# Copyright 2022 Brad Weir <briardew@gmail.com>. All rights reserved.
+# Copyright 2022-2023 Brad Weir <briardew@gmail.com>. All rights reserved.
 # Licensed under the Apache License 2.0, which can be obtained at
 # http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -12,7 +12,7 @@ Initialize retrievals module
 #===============================================================================
 
 # Define supported types
-__all__ = ['acos', 'euroghg', 'tropomi', 'iasi', 'tropess', 'mopitt']
+__all__ = ['acos', 'euroghg', 'nies', 'iasi', 'mopitt', 'tropess', 'tropomi']
 
 # Load supported types and build dictionary
 namedict = {}

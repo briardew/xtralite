@@ -1,7 +1,7 @@
 '''
 TROPOMI support for xtralite
 '''
-# Copyright 2022 Brad Weir <briardew@gmail.com>. All rights reserved.
+# Copyright 2022-2023 Brad Weir <briardew@gmail.com>. All rights reserved.
 # Licensed under the Apache License 2.0, which can be obtained at
 # http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -26,8 +26,10 @@ from glob import glob
 from datetime import datetime, timedelta
 
 import numpy as np
-import xarray as xr
 import netCDF4
+# stop xarray from recasting coordinates
+#import xarray as xr
+from xtralite.patches import xarray as xr
 
 modname  = 'tropomi'
 varlist  = ['ch4', 'co', 'hcho', 'so2', 'no2', 'o3']
@@ -39,6 +41,11 @@ SERVE = 'https://tropomi.gesdisc.eosdis.nasa.gov/data'
 WGETCMD = 'wget'
 #WGETCMD = path.expanduser('~/bin/borg-wget.sh')
 
+#wget "https://s5phub.copernicus.eu/dhus/search?q=beginPosition:[2023-07-05T00:00:00.000Z TO 2023-07-05T23:59:59.999Z] AND ( (platformname:Sentinel-5 AND producttype:L2__NO2___ AND processinglevel:L2 AND processingmode:Near real time))&rows=100&start=100" --output-document=query_results.txt
+#for uuid in $(grep uuid query_results.txt | sed -e "s/.*>\(.*\)<.*/\1/"); do
+#    wget --content-disposition --continue "https://s5phub.copernicus.eu/dhus/odata/v1/Products('$uuid')/\$value"
+#done
+
 RMTMPS = True				# remove temporary files?
 RMORBS = True				# remove orbit files?
 
@@ -47,8 +54,8 @@ FTAIL  = '.nc'
 TIME0  = datetime(2010, 1, 1)
 
 def setup(**xlargs):
-    from . import default
-    from .translators.tropomi import translate
+    from xtralite.retrievals import default
+    from xtralite.translators.tropomi import translate
 
     xlargs['ftail'] = xlargs.get('ftail', FTAIL)
 
@@ -59,7 +66,7 @@ def setup(**xlargs):
 
     return xlargs
 
-def build(**xlargs):
+def acquire(**xlargs):
 #   Get retrieval arguments
     mod = xlargs.get('mod', '*')
     var = xlargs.get('var', '*')
