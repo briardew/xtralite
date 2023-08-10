@@ -31,8 +31,8 @@ namelist = ['besd_co2_sciam', 'wfmd_co2_sciam', 'wfmd_ch4_sciam',
     'imap_ch4_sciam', 'ocpr_ch4_gosat', 'leic_ch4_gosat', 'uol_ch4_gosat']
 
 def setup(**xlargs):
-    from xtralite.retrievals import default
-    from xtralite.translators.euroghg import translate
+    from xtralite.acquire import default
+    from xtralite.translate.euroghg import translate
 
     # Make everything sit in euroghg directory
     xlargs['head'] = xlargs.get('head', path.join('data', 'euroghg'))

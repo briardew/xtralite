@@ -54,8 +54,8 @@ FTAIL  = '.nc'
 TIME0  = datetime(2010, 1, 1)
 
 def setup(**xlargs):
-    from xtralite.retrievals import default
-    from xtralite.translators.tropomi import translate
+    from xtralite.acquire import default
+    from xtralite.translate.tropomi import translate
 
     xlargs['ftail'] = xlargs.get('ftail', FTAIL)
 

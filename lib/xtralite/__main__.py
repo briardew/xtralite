@@ -16,7 +16,7 @@ import sys
 from datetime import datetime
 from argparse import ArgumentParser
 
-from xtralite import retrievals, build
+from xtralite import acquire, builder
 
 # Parse command-line options
 class XLParser(ArgumentParser):
@@ -28,7 +28,7 @@ class XLParser(ArgumentParser):
 # Read arguments
 parser = XLParser(description=__doc__,
     usage='xtralite name [options]',
-    epilog='supported names: ' + ', '.join(retrievals.namelist))
+    epilog='supported names: ' + ', '.join(acquire.namelist))
 parser.add_argument('name', help='name of products to build ' +
     '(see list below)')
 parser.add_argument('--beg', help='begin date (default: %(default)s)',
@@ -45,7 +45,7 @@ parser.add_argument('--log', help='log file (default: stdout)')
 def main():
     xlargs = vars(parser.parse_args())
     if xlargs['head'] is None: xlargs.pop('head')
-    build(**xlargs)
+    builder.build(**xlargs)
 
 if __name__ == '__main__':
     sys.exit(main())

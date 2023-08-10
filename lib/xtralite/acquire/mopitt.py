@@ -32,8 +32,8 @@ satday0  = [datetime(2000, 3, 1)]
 namelist = [modname + '_' + vv for vv in varlist]
 
 def setup(**xlargs):
-    from xtralite.retrievals import default
-    from xtralite.translators.mopitt import translate
+    from xtralite.acquire import default
+    from xtralite.translate.mopitt import translate
 
     xlargs['mod'] = xlargs.get('mod', modname)
     xlargs['ftail'] = '.he5'

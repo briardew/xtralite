@@ -13,8 +13,6 @@ xtralite: Acquire, build, and prepare constituent data for assimilation
 
 __version__ = '0.0.1'
 __author__ = 'Brad Weir'
-__all__ = ['chunker', 'retrievals', 'build']
+__all__ = ['acquire', 'chunker', 'builder']
 
-from xtralite import chunker
-from xtralite import retrievals
-from xtralite._build import build
+from xtralite import acquire, chunker, builder

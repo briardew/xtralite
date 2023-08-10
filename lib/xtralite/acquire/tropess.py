@@ -27,8 +27,8 @@ satday0 = [datetime(2021, 1, 1), datetime(2021, 1, 1), datetime(2021, 1, 1)]
 namelist = ['tropess_' + vv for vv in varlist]
 
 def setup(**xlargs):
-    from xtralite.retrievals import default
-    from xtralite.translators.tropess import translate
+    from xtralite.acquire import default
+    from xtralite.translate.tropess import translate
 
 #   Hack for now/only ver
     xlargs['ver'] = xlargs.get('ver', 'v1f')

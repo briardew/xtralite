@@ -52,9 +52,9 @@ def setup(**xlargs):
     xlargs['ver'] = ver
 
     # Build directory names (can be templates for now)
-    data = xlargs.get('head', 'data')
-    daily = path.join(data, mod, var, sat + '_' + ver + '_daily')
-    chunk = path.join(data, mod, var, sat + '_' + ver + '_chunks')
+    xlargs['head'] = xlargs.get('head', 'data')
+    daily = path.join(xlargs['head'], mod, var, sat + '_' + ver + '_daily')
+    chunk = path.join(xlargs['head'], mod, var, sat + '_' + ver + '_chunks')
     if '*' in xlargs.get('daily', '*'): xlargs['daily'] = daily
     if '*' in xlargs.get('prep',  '*'): xlargs['prep']  = daily
     if '*' in xlargs.get('chunk', '*'): xlargs['chunk'] = chunk

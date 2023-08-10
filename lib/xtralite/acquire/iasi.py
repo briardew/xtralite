@@ -27,8 +27,8 @@ satday0 = [datetime(2007,10, 1), datetime(2012, 9, 1), datetime(2018,11, 1)]
 namelist = ['iasi_' + vv for vv in varlist]
 
 def setup(**xlargs):
-    from xtralite.retrievals import default
-    from xtralite.translators.iasi import translate
+    from xtralite.acquire import default
+    from xtralite.translate.iasi import translate
 
     xlargs = default.setup(**xlargs)
 

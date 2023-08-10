@@ -16,8 +16,7 @@ from subprocess import PIPE, Popen
 from time import sleep
 from datetime import datetime, timedelta
 
-from xtralite import chunker
-from xtralite import retrievals
+from xtralite import acquire, chunker
 
 def build(**xlargs):
     # Check for NCO utilities
@@ -28,7 +27,7 @@ def build(**xlargs):
         sys.stderr.write('*** WARNING *** NCO executables not in $PATH\n\n')
 
     name = xlargs.get('name', '')
-    obsmod = retrievals.getmod(name)
+    obsmod = acquire.getmod(name)
     if obsmod is None:
         sys.stderr.write('*** ERROR *** Unsupported name (%s)\n\n' % name)
         sys.stderr.write('Run `xtralite --help` to see supported names\n')
@@ -49,7 +48,7 @@ def build(**xlargs):
     prep  = xlargs.get('prep',  '*')
     chunk = xlargs.get('chunk', '*')
 
-    print('Building  daily files in ' + daily)
+    print('Acquiring daily files in ' + daily)
     if prep != daily: print('Preparing files in ' + prep)
     if xlargs.get('codas',False): print('Chunking files in ' + chunk)
     print('from ' + xlargs['beg'] + ' to ' + xlargs['end'])
@@ -114,6 +113,9 @@ def build(**xlargs):
             xlday['jdend'] = jdnow
             xlday['beg'] = jdnow.strftime('%Y-%m-%d')
             xlday['end'] = jdnow.strftime('%Y-%m-%d')
+            # To get version numbers and stuff right
+            # Will drop 18-21Z data on last day when versions change
+            xlday = obsmod.setup(**xlday)
 
             chunker.chunk(**xlday)
 
