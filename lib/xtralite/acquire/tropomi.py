@@ -21,7 +21,7 @@ TROPOMI support for xtralite
 
 import sys
 from os import path, remove, rmdir
-from subprocess import call
+from subprocess import call, PIPE, Popen
 from glob import glob
 from datetime import datetime, timedelta
 
@@ -67,6 +67,13 @@ def setup(**xlargs):
     return xlargs
 
 def acquire(**xlargs):
+    # Check for NCO utilities
+    # (will be removed soon, TROPOMI processing still uses these)
+    try:
+        pout = Popen('ncks', stdout=PIPE)
+    except OSError:
+        sys.stderr.write('*** WARNING *** NCO executables not in $PATH\n\n')
+
 #   Get retrieval arguments
     mod = xlargs.get('mod', '*')
     var = xlargs.get('var', '*')

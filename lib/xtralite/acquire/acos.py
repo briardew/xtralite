@@ -30,14 +30,16 @@ satday0 = [datetime(2009, 4, 1), datetime(2014, 8, 1), datetime(2019, 8, 1)]
 namelist = ['acos_' + ss for ss in satlist]
 
 def setup(**xlargs):
-    from xtralite.translators import acos as translate
+    from xtralite.translate import acos as translate
 
-#   Parse name into satellite, version, etc.
+    # Parse name into satellite, version, etc.
     name = xlargs['name']
-    isat = name.rfind('_')
+    isat = name.find('_')
     if isat == -1: isat = len(name)
-    sat = name[:isat]
-    ver = name[isat+1:]
+    iver = name.find('_', isat+1)
+    if iver == -1: iver = len(name)
+    sat = name[isat+1:iver]
+    ver = name[iver+1:]
 
     sax = sat if sat != 'gosat' else 'acos'
     if len(ver) == 0:
@@ -45,32 +47,27 @@ def setup(**xlargs):
         if sat == 'oco2':  ver = 'v11.1r'
         if sat == 'oco3':  ver = 'v10.4r'
 
+    mod = 'acos'
+    var = 'co2'
+
+    # Fill arguments
+    xlargs['mod'] = mod
+    xlargs['var'] = var
     xlargs['sat'] = sat
     xlargs['sax'] = sax
     xlargs['ver'] = ver
 
-#   Build directory names
-    head  = xlargs.get('head',  './data')
-    daily = xlargs.get('daily', '*')
-    prep  = xlargs.get('prep',  '*')
-    chunk = xlargs.get('chunk', '*')
+    # Build directory names (can be templates for now)
+    xlargs['head'] = xlargs.get('head', 'data')
+    daily = path.join(xlargs['head'], mod, sat + '_' + ver + '_daily')
+    prep  = path.join(xlargs['head'], mod, sat + '_' + ver + '_prep')
+    chunk = path.join(xlargs['head'], mod, sat + '_' + ver + '_chunks')
+    if '*' in xlargs.get('daily', '*'): xlargs['daily'] = daily
+    if '*' in xlargs.get('prep',  '*'): xlargs['prep']  = prep
+    if '*' in xlargs.get('chunk', '*'): xlargs['chunk'] = chunk
 
-    if '*' in daily:
-        xlargs['daily'] = head + '/acos/' + sat + '_' + ver + '_daily'
- 
-    chops = xlargs['daily'].rsplit('_daily', 1)
-    if len(chops) == 1: chops = chops + ['']
-
-    if '*' in prep:
-        xlargs['prep'] = '_prep'.join(chops)
-
-    if xlargs.get('codas',False) and '*' in chunk:
-        chops = xlargs['daily'].rsplit('_daily', 1)
-        if len(chops) == 1: chops = chops + ['']
-        xlargs['chunk'] = '_chunks'.join(chops)
-
-#   This could be set elsewhere, maybe in xtralite, unless
-#   you're planning on running the chunker from this module.
+    # This could be set elsewhere, maybe in xtralite, unless
+    # you're planning on running the chunker from this module.
     xlargs['fhead']  = sax + '_LtCO2_'
     xlargs['fhout']  = sax + '_' + ver + '_LtCO2_'
     xlargs['ftail']  = '.nc4'
@@ -82,7 +79,7 @@ def setup(**xlargs):
     if sat[:5] == 'gosat': xlargs['translate']  = translate.gosat
     if sat[:3] == 'oco':   xlargs['translate']  = translate.oco
 
-#   Set wget arguments
+    # Set wget arguments
     wgargs = ['-r', '-np', '-nd', '-e', 'robots=off']
     if not xlargs.get('repro',False):
         wgargs = wgargs + ['-N']

@@ -47,25 +47,25 @@ def setup(**xlargs):
     return xlargs
 
 def acquire(**xlargs):
-#   Get retrieval arguments
+    # Get retrieval arguments
     mod = xlargs.get('mod', '*')
     var = xlargs.get('var', '*')
     sat = xlargs.get('sat', '*')
     ver = xlargs.get('ver', '*')
 
-#   Determine timespan
+    # Determine timespan
     jdbeg = xlargs.get('jdbeg', min(satday0))
     jdend = xlargs.get('jdend', datetime.now())
     ndays = (jdend - jdbeg).days + 1
 
-#   Download
+    # Download
     for nd in range(ndays):
         jday = jdbeg + timedelta(nd)
         yget = str(jday.year)
         dget = yget + str(jday.month).zfill(2) + str(jday.day).zfill(2)
         fget = '*-' + dget + '-*' + xlargs['ftail']
 
-#       Determine version based on date
+        # Determine version based on date
         vernow = 'v' + str(VERNUM) + 'r'
         if JNRT < jday: vernow = 'v' + str(100+VERNUM) + 'r'
 
@@ -77,12 +77,12 @@ def acquire(**xlargs):
                 "doesn't match current version (%s)\n") % (veruse, vernow))
             continue
 
-#       Archive directory (ardir)
+        # Archive directory
         ardir = 'MOP02' + var[0].upper() + '.' + veruse[1:-1].zfill(3)
 
-#       Set daily directory if unspecified and make sure prep matches
-#       This should be done in setup or someting, super hokey
-#       Needs to be fixed everywhere (***FIXME***)
+        # Set daily directory if unspecified and make sure prep matches
+        # This should be done in setup or someting, super hokey
+        # Needs to be fixed everywhere (***FIXME***)
         if '*' in xlargs['daily']:
             head = xlargs.get('head', 'data')
             xlargs['daily'] = path.join(head, mod, 
@@ -90,10 +90,12 @@ def acquire(**xlargs):
         xlargs['prep'] = xlargs['daily']
         xlargs['fhout'] = mod + '_' + var + '_' + veruse + '.'
 
+        # Download
+        wgargs = xlargs.get('wgargs', None)
         cmd = (['wget', '--load-cookies', path.expanduser('~/.urs_cookies'),
             '--save-cookies', path.expanduser('~/.urs_cookies'),
             '--auth-no-challenge=on', '--keep-session-cookies',
-            '--content-disposition'] + xlargs['wgargs'] +
+            '--content-disposition'] + wgargs +
             [SERVE + '/' + ardir + '/' + jday.strftime('%Y.%m.%d') + '/',
             '-A', fget, '-P', path.join(xlargs['daily'], 'Y'+yget)])
         if VERBOSE: print(' '.join(cmd))

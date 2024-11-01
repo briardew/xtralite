@@ -30,7 +30,7 @@ def setup(**xlargs):
     from xtralite.acquire import default
     from xtralite.translate.tropess import translate
 
-#   Hack for now/only ver
+    # Hack for now/only ver
     xlargs['ver'] = xlargs.get('ver', 'v1f')
 
     xlargs['translate'] = translate
@@ -40,7 +40,7 @@ def setup(**xlargs):
     return xlargs
 
 def acquire(**xlargs):
-#   Get retrieval arguments
+    # Get retrieval arguments
     mod = xlargs.get('mod', '*')
     var = xlargs.get('var', '*')
     sat = xlargs.get('sat', '*')
@@ -48,7 +48,7 @@ def acquire(**xlargs):
 
     satlo = sat.lower()
 
-#   Set archive directory (ardir)
+    # Archive directory (ardir) and file header (fhead)
     if satlo[:4] == 'airs':
         ardir = 'TRPSDL2' + var.upper() + 'AIRSFS.' + ver[1]
         fhead = 'TROPESS_AIRS-Aqua_L2_Standard_' + var.upper() + '_'
@@ -65,12 +65,12 @@ def acquire(**xlargs):
     xlargs['fhead'] = fhead
     xlargs['fhout'] = mod + '_' + var + '_' + sat + '_' + ver + '.'
 
-#   Determine timespan
+    # Determine timespan
     jdbeg = xlargs.get('jdbeg', min(satday0))
     jdend = xlargs.get('jdend', datetime.now())
     ndays = (jdend - jdbeg).days + 1
 
-#   Download
+    # Download
     wgargs = xlargs.get('wgargs', None)
     for nd in range(ndays):
         jdnow = jdbeg + timedelta(nd)

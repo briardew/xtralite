@@ -1,5 +1,7 @@
 * Remove coarsener
 * Fix bitwise and/or in TROPOMI
+* Sort out GOSAT names
+* Apply snow/ice flag to TROPOMI CH4
 * No clobber for servers that don't support timestamps (MOPITT)
 * TROPESS translator
 * IASI translator

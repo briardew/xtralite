@@ -12,20 +12,12 @@ xtralite: Acquire, prepare, and translate constituent data for assimilation
 #===============================================================================
 
 import sys
-from subprocess import PIPE, Popen
 from time import sleep
 from datetime import datetime, timedelta
 
 from xtralite import acquire, chunker
 
 def build(**xlargs):
-    # Check for NCO utilities
-    # (will be removed soon, some retrievals still use these)
-    try:
-        pout = Popen('ncks', stdout=PIPE)
-    except OSError:
-        sys.stderr.write('*** WARNING *** NCO executables not in $PATH\n\n')
-
     name = xlargs.get('name', '')
     obsmod = acquire.getmod(name)
     if obsmod is None:

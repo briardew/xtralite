@@ -42,7 +42,6 @@ def acquire(**xlargs):
     mod = xlargs.get('mod', '*')
     var = xlargs.get('var', '*')
     sat = xlargs.get('sat', '*')
-    ver = xlargs.get('ver', '*')
 
     varlo = var.lower()
     satlet = sat[-1]
@@ -102,31 +101,22 @@ def acquire(**xlargs):
 
             fhead = 'IASI_METOP' + satlet.upper() + '_L2_' + var.upper() + '_'
             fget  = fhead + dget + '_ULB-LATMOS_' + verbug + ftail
-
-        # Set and check version
-        veruse = verout if ver == '*' else ver
-
-        if veruse.lower() != verout.lower():
-            sys.stderr.write(("*** WARNING *** Specified version (%s) " +
-                "doesn't match current version (%s)\n") % (veruse, verout))
-            continue
+        ver = verout
 
         ardir = ('iasi' + satlet.lower() + 'l2/' +
             'iasi_' + var.lower() + '/' + verin)
 
-        # Directory and filename information (may not be needed)
-        if '*' in xlargs['daily']:
-            xlargs['daily'] = path.join(xlargs['head'], mod, var,
-                sat + '_' + veruse + '_daily')
+        # Directory and filename information
+        xlargs['daily'] = path.join(xlargs['head'], mod, var,
+            sat + '_' + ver + '_daily')
 
-        if '*' in xlargs.get('chunk','*'):
-            chops = xlargs['daily'].rsplit('_daily', 1)
-            if len(chops) == 1: chops = chops + ['']
-            xlargs['chunk'] = '_chunks'.join(chops)
+        chops = xlargs['daily'].rsplit('_daily', 1)
+        if len(chops) == 1: chops = chops + ['']
+        xlargs['chunk'] = '_chunks'.join(chops)
 
         xlargs['fhead'] = fhead
         xlargs['ftail'] = ftail
-        xlargs['fhout'] = mod + '_' + var + '_' + sat + '_' + veruse + '.'
+        xlargs['fhout'] = mod + '_' + var + '_' + sat + '_' + ver + '.'
 
         # Download daily files
         cmd = (['wget', '--no-check-certificate'] + wgargs +
