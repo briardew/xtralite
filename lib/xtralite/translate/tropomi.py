@@ -6,7 +6,7 @@ Translate TROPOMI retrievals to CoDAS format
 # http://www.apache.org/licenses/LICENSE-2.0
 #
 # Changelog:
-# 2022/04/26	Initial commit
+# 2022-04-26	Initial commit
 #
 # Todo:
 # * Why is navg coordinate a float?
@@ -213,6 +213,7 @@ def translate_no2(fin, ftr):
     dd = _generic_beg(dd)
 
     dd = dd.rename({'nitrogendioxide_summed_total_column':'obs',
+        'nitrogendioxide_slant_column_density':'slant',
         'nitrogendioxide_summed_total_column_precision':'uncert',
         'averaging_kernel':'avgker'})
 
@@ -235,7 +236,7 @@ def translate_no2(fin, ftr):
         'long_name':'pressure edges'}))
 
     dd = dd.drop_vars(('cloud_fraction_crb', 'tm5_constant_a',
-        'tm5_constant_b', 'vertices', 'nitrogendioxide_slant_column_density'))
+        'tm5_constant_b', 'vertices'))
 
     dd = _generic_end(dd)
     dd.to_netcdf(ftr)

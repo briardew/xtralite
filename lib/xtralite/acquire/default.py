@@ -6,7 +6,7 @@ Default support for xtralite
 # http://www.apache.org/licenses/LICENSE-2.0
 #
 # Changelog:
-# 2022/04/26	Initial commit
+# 2022-04-26	Initial commit
 #
 # Todo:
 # * Add some warnings
@@ -21,7 +21,7 @@ def translate(fin, ftr):
 
     return None
 
-def setup(**xlargs):
+def setup(jdnow, **xlargs):
     '''Define runtime arguments'''
 
     # Parse name as module_variable_satellite_version, e.g.,
@@ -34,6 +34,7 @@ def setup(**xlargs):
     if isat == -1: isat = len(name)
     iver = name.find('_', isat+1)
     if iver == -1: iver = len(name)
+
     mod = name[:ivar]
     var = name[ivar+1:isat]
     sat = name[isat+1:iver]

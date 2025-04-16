@@ -6,7 +6,7 @@ Translate IASI retrievals to CoDAS format
 # http://www.apache.org/licenses/LICENSE-2.0
 #
 # Changelog:
-# 2022/04/26	Initial commit
+# 2022-04-26	Initial commit
 #
 # Todo:
 # * Check we're summing along correct indices
@@ -33,8 +33,26 @@ def translate_co(fin, ftr):
     # (files w/o unlimited dims are smaller)
     del dd.encoding['unlimited_dims']
 
-    # Redefine index to sounding number in day
+    # Assign date and time variables
     nsound = dd.sizes['nsound']
+    secs = dd.get('AERIStime', dd['nsound'])
+    days = secs.values[:]/(60.*60.*24.)
+
+    ## Can this be vectorized easily?
+    date = np.zeros(nsound, dtype=np.int32)
+    time = np.zeros(nsound, dtype=np.int32)
+    for nn in range(nsound):
+        tt = datetime(2007, 1, 1) + timedelta(days[nn])
+        date[nn] = tt.day    + tt.month*100  + tt.year*10000
+        time[nn] = tt.second + tt.minute*100 + tt.hour*10000
+
+    dd = dd.assign(date=('nsound', date, {'units':'YYYYMMDD',
+        'long_name':'sounding date'}))
+    dd = dd.assign(time=('nsound', time, {'units':'hhmmss',
+        'long_name':'sounding time'}))
+
+    # Redefine nsound to sounding number in day
+    # NB: This needs to come after secs is read
     dd = dd.assign_coords(nsound=np.arange(nsound, dtype=np.int32))
 
     # Convert uncertainty to absolute from relative
@@ -48,7 +66,7 @@ def translate_co(fin, ftr):
     # Assign averaging kernel and prior obs variables
     avgpro = dd['averaging_kernel_matrix'].values
     avgpro[avgpro == -999] = 0.
-    avgker = np.sum(avgpro, axis=2)
+    avgker = np.sum(avgpro, axis=1)
 
     priorobs = np.sum(dd['priorpro'].values, axis=1)
 
@@ -62,35 +80,20 @@ def translate_co(fin, ftr):
     nedge = dd.sizes['navg'] + 1
 
     zsurf = dd.variables['surface_altitude'].values
-    zgrid = np.flip(np.arange(0,nedge*1000,1000, dtype=zsurf.dtype))
+    zgrid = np.arange(0,nedge*1000,1000, dtype=zsurf.dtype)
     zeavg = np.tile(zsurf, (nedge,1)).T + np.tile(zgrid, (nsound,1))
 
     dd = dd.assign(nedge=('nedge', np.arange(nedge, dtype='int32')))
     dd = dd.assign(zeavg=(('nsound','nedge'), zeavg, {'units':'m',
         'long_name':'altitude edges'}))
 
-    # Assign date and time variables
-    dstr = dd['time_string'].values
-
-    date = np.zeros(nsound, dtype=np.int32)
-    time = np.zeros(nsound, dtype=np.int32)
-
-    for nn in range(nsound):
-        tt = datetime.strptime(dstr[nn].decode('utf-8'), '%Y%m%dT%H%M%SZ')
-        date[nn] = tt.day    + tt.month*100  + tt.year*10000
-        time[nn] = tt.second + tt.minute*100 + tt.hour*10000
-
-    dd = dd.assign(date=('nsound', date, {'units':'YYYYMMDD',
-        'long_name':'sounding date'}))
-    dd = dd.assign(time=('nsound', time, {'units':'hhmmss',
-        'long_name':'sounding time'}))
-
-    dd = dd.drop_vars(('time_string', 'time_in_day', 'solar_zenith_angle',
+    dd = dd.drop_vars(('time_string', 'time_in_day', 'AERIStime',
+        'hour', 'minute', 'day', 'solar_zenith_angle',
         'satellite_zenith_angle', 'orbit_number', 'scanline_number',
         'pixel_number', 'ifov_number', 'surface_altitude',
         'air_partial_column_profile', 'atmosphere_pressure_grid',
         'CO_partial_column_profile', 'CO_partial_column_error',
-        'CO_degrees_of_freedom', 'averaging_kernel_matrix'))
+        'CO_degrees_of_freedom', 'averaging_kernel_matrix'), errors='ignore')
 
     dd.to_netcdf(ftr)
     dd.close()
@@ -106,10 +109,10 @@ def translate_ch4(fin, ftr):
         'pressure_levels':'peavg', 'ch4_quality_flag':'isbad', 'ch4':'obs',
         'ch4_uncertainty':'uncert', 'ch4_averaging_kernel':'avgker'})
 
-    # Replace averaging kernel with product of it and pwf
-    pwf = dd['pressure_weight']
-    avgker = dd['avgker']
-    avgker.values = avgker.values*pwf.values
+#   # Replace averaging kernel with product of it and pwf
+#   pwf = dd['pressure_weight']
+#   avgker = dd['avgker']
+#   avgker.values = avgker.values*pwf.values
 
     # Assign date and time vars
     ttin = dd['time'].values

@@ -6,7 +6,7 @@ Translate NIES retrievals to CoDAS format
 # http://www.apache.org/licenses/LICENSE-2.0
 #
 # Changelog:
-# 2022/04/26	Initial commit
+# 2022-04-26	Initial commit
 #
 # Todo:
 #===============================================================================

@@ -6,9 +6,11 @@ MOPITT support for xtralite
 # http://www.apache.org/licenses/LICENSE-2.0
 #
 # Changelog:
-# 2022/04/26	Initial commit
+# 2022-04-26	Initial commit
 #
 # Todo:
+# * This version still cannot take a version string, e.g., mopitt_tir_v7
+# * This version still will choke if var is *
 #===============================================================================
 
 import sys
@@ -19,86 +21,79 @@ from datetime import datetime, timedelta
 VERBOSE = True
 DEBUG   = True
 
-SERVE = 'https://l5ftl01.larc.nasa.gov/ops/misrl2l3/MOPITT'
-# Does this change?
-JNRT = datetime(2021, 3,24)
-
-# Cheese stands alone
-VERNUM   = 9
+VNUMDEF  = 9
+VERDEF   = 'v' + str(VNUMDEF) + 'r'
 modname  = 'mopitt'
 varlist  = ['tir', 'nir']
 satlist  = ['terra']
 satday0  = [datetime(2000, 3, 1)]
 namelist = [modname + '_' + vv for vv in varlist]
 
-def setup(**xlargs):
+# This value changes: lags present by about a year
+JDNRT = datetime(2023,11,25)
+
+SERVE = 'https://l5ftl01.larc.nasa.gov/ops/misrl2l3/MOPITT'
+
+def setup(jdnow, **xlargs):
     from xtralite.acquire import default
     from xtralite.translate.mopitt import translate
 
-    xlargs['mod'] = xlargs.get('mod', modname)
+    mod = modname
+    sat = satlist[0]
+
+    xlargs['mod'] = mod
+    xlargs['sat'] = sat
     xlargs['ftail'] = '.he5'
 
-    var = xlargs.get('var', '*')
+    xlargs = default.setup(jdnow, **xlargs)
+
+    # Fill unspecified version with default and
+    # flip to forward stream based on date
+    ver = xlargs['ver']
+    if ver == '*': ver = VERDEF
+    if ver == VERDEF and JDNRT <= jdnow: ver = 'v' + str(100+VNUMDEF) + 'f'
+    xlargs['ver'] = ver
+
+    # Fill directory and filename templates (needs improvement)
+    var  = xlargs['var']
+    head = xlargs['head']
+
+    daily = path.join(head, mod, var + '_' + ver + '_daily')
+    chunk = path.join(head, mod, var + '_' + ver + '_chunks')
+    xlargs['daily'] = daily
+    xlargs['prep']  = daily
+    xlargs['chunk'] = chunk
+
+    xlargs['fhout'] = mod + '_' + var + '_' + ver + '.'
     xlargs['fhead'] = 'MOP02' + var[0].upper() + '-'
     xlargs['translate'] = lambda fin, ftr: translate(fin, ftr, var)
 
-    xlargs = default.setup(**xlargs)
-
     return xlargs
 
-def acquire(**xlargs):
-    # Get retrieval arguments
-    mod = xlargs.get('mod', '*')
-    var = xlargs.get('var', '*')
-    sat = xlargs.get('sat', '*')
-    ver = xlargs.get('ver', '*')
-
-    # Determine timespan
-    jdbeg = xlargs.get('jdbeg', min(satday0))
-    jdend = xlargs.get('jdend', datetime.now())
-    ndays = (jdend - jdbeg).days + 1
+# What if it were just called like
+# import mopitt
+# mopitt.acquire(datetime(2020, 1, 1), 'mopitt_terra_tir')
+#
+# import euroghg
+# euroghg.acquire(datetime(2020, 1, 1), 'leic_ch4_v9')
+def acquire(jdnow, **xlargs):
+    xlargs = setup(jdnow, **xlargs)
+    ver = xlargs['ver']
+    var = xlargs['var']
 
     # Download
-    for nd in range(ndays):
-        jday = jdbeg + timedelta(nd)
-        yget = str(jday.year)
-        dget = yget + str(jday.month).zfill(2) + str(jday.day).zfill(2)
-        fget = '*-' + dget + '-*' + xlargs['ftail']
+    year = str(jdnow.year)
+    date = year + str(jdnow.month).zfill(2) + str(jdnow.day).zfill(2)
+    fwild = '*-' + date + '-*' + xlargs['ftail']
+    ardir = 'MOP02' + var[0].upper() + '.' + ver[1:-1].zfill(3)
 
-        # Determine version based on date
-        vernow = 'v' + str(VERNUM) + 'r'
-        if JNRT < jday: vernow = 'v' + str(100+VERNUM) + 'r'
-
-        veruse = ver
-        if ver == '*': veruse = vernow
-
-        if veruse.lower() != vernow.lower():
-            sys.stderr.write(("*** WARNING *** Specified version (%s) " +
-                "doesn't match current version (%s)\n") % (veruse, vernow))
-            continue
-
-        # Archive directory
-        ardir = 'MOP02' + var[0].upper() + '.' + veruse[1:-1].zfill(3)
-
-        # Set daily directory if unspecified and make sure prep matches
-        # This should be done in setup or someting, super hokey
-        # Needs to be fixed everywhere (***FIXME***)
-        if '*' in xlargs['daily']:
-            head = xlargs.get('head', 'data')
-            xlargs['daily'] = path.join(head, mod, 
-                var + '_' + veruse + '_daily')
-        xlargs['prep'] = xlargs['daily']
-        xlargs['fhout'] = mod + '_' + var + '_' + veruse + '.'
-
-        # Download
-        wgargs = xlargs.get('wgargs', None)
-        cmd = (['wget', '--load-cookies', path.expanduser('~/.urs_cookies'),
-            '--save-cookies', path.expanduser('~/.urs_cookies'),
-            '--auth-no-challenge=on', '--keep-session-cookies',
-            '--content-disposition'] + wgargs +
-            [SERVE + '/' + ardir + '/' + jday.strftime('%Y.%m.%d') + '/',
-            '-A', fget, '-P', path.join(xlargs['daily'], 'Y'+yget)])
-        if VERBOSE: print(' '.join(cmd))
-        pout = call(cmd)        
+    cmd = (['wget', '--load-cookies', path.expanduser('~/.urs_cookies'),
+        '--save-cookies', path.expanduser('~/.urs_cookies'),
+        '--auth-no-challenge=on', '--keep-session-cookies',
+        '--content-disposition'] + xlargs['wgargs'] +
+        [SERVE + '/' + ardir + '/' + jdnow.strftime('%Y.%m.%d') + '/',
+        '-A', fwild, '-P', path.join(xlargs['daily'], 'Y'+year)])
+    if VERBOSE: print(' '.join(cmd))
+    pout = call(cmd)        
 
     return xlargs

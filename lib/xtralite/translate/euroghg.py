@@ -6,7 +6,7 @@ Translate European GHG retrievals to CoDAS format
 # http://www.apache.org/licenses/LICENSE-2.0
 #
 # Changelog:
-# 2022/04/26	Initial commit
+# 2022-04-26	Initial commit
 #
 # Todo:
 #===============================================================================
@@ -59,6 +59,9 @@ def translate(fin, ftr, var):
         'long_name':'sounding date'}))
     dd = dd.assign(time=(RECDIM, time, {'units':'hhmmss',
         'long_name':'sounding time'}))
+
+    # Sort -- Chunker will die if time is non-increasing
+    dd = dd.sortby('time')
 
     # Replace averaging kernel with product of it and pwf
     pwf = dd['pressure_weight'].values

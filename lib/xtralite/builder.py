@@ -6,18 +6,28 @@ xtralite: Acquire, prepare, and translate constituent data for assimilation
 # http://www.apache.org/licenses/LICENSE-2.0
 #
 # Changelog:
-# 2022/04/26	Initial commit
+# 2022-04-26	Initial commit
 #
 # Todo:
+# * Get defaults handled in one place insteda of all over
+# * Simplify beg/jdbeg/etc. handling
+# * Maybe pass name to build as a required arg, i.e.,
+#       def build(name, **xlargs):
+#   Then hopefully you could do stuff like
+#       import xtralite
+#       xtralite.build('tropomi_ch4', codas=True)
+# * Move getmod to here
 #===============================================================================
 
 import sys
+from os import getenv
 from time import sleep
 from datetime import datetime, timedelta
 
 from xtralite import acquire, chunker
 
 def build(**xlargs):
+    # Parse name to determine module
     name = xlargs.get('name', '')
     obsmod = acquire.getmod(name)
     if obsmod is None:
@@ -30,7 +40,7 @@ def build(**xlargs):
     xlargs['jdbeg'] = datetime.strptime(xlargs['beg'], '%Y-%m-%d')
     xlargs['jdend'] = datetime.strptime(xlargs['end'], '%Y-%m-%d')
 
-    xlargs = obsmod.setup(**xlargs)
+    xlargs = obsmod.setup(xlargs['jdbeg'], **xlargs)
 
     # Need to sort out defaults a little better
     xlargs['head'] = xlargs.get('head', 'data')
@@ -44,6 +54,8 @@ def build(**xlargs):
     if prep != daily: print('Preparing files in ' + prep)
     if xlargs.get('codas',False): print('Chunking files in ' + chunk)
     print('from ' + xlargs['beg'] + ' to ' + xlargs['end'])
+    print('')
+    print('OMP_NUM_THREADS = ' + getenv('OMP_NUM_THREADS'))
 
     # Last chance to kill
     sys.stdout.write('\nIn ')
@@ -71,7 +83,7 @@ def build(**xlargs):
             build(**xltame)
         return
 
-    # Cut down on time, check range is valid
+    # Cut down on time & check range is valid
     sat = xlargs.get('sat', '*')
     jdbeg = xlargs.get('jdbeg', datetime(1980, 1, 1))
     jdend = xlargs.get('jdend', datetime.now())
@@ -84,7 +96,6 @@ def build(**xlargs):
             'end date (%s)\n') % (jdbeg.strftime('%Y-%m-%d'),
             jdend.strftime('%Y-%m-%d')))
         sys.exit(2)
-    ndays = (jdend - jdbeg).days + 1
 
     xlargs['jdbeg'] = jdbeg
     xlargs['jdend'] = jdend
@@ -92,23 +103,18 @@ def build(**xlargs):
     xlargs['end'] = jdend.strftime('%Y-%m-%d')
 
     # Build and chunk (if requested)
-    xlargs = obsmod.acquire(**xlargs)
-    if xlargs.get('codas',False):
-        chops = xlargs['daily'].rsplit('_daily', 1)
-        if len(chops) == 1: chops = chops + ['']
-        xlargs['chunk'] = '_chunks'.join(chops)
+    ndays = (jdend - jdbeg).days + 1
+    for nd in range(ndays):
+        jdnow = jdbeg + timedelta(nd)
 
-        xlday = dict(xlargs)
-        for nd in range(ndays):
-            jdnow = jdbeg + timedelta(nd)
-            xlday['jdbeg'] = jdnow
-            xlday['jdend'] = jdnow
-            xlday['beg'] = jdnow.strftime('%Y-%m-%d')
-            xlday['end'] = jdnow.strftime('%Y-%m-%d')
-            # To get version numbers and stuff right
-            # Will drop 18-21Z data on last day when versions change
-            xlday = obsmod.setup(**xlday)
+        xlargs = obsmod.setup(jdnow, **xlargs)
+        xlargs = obsmod.acquire(jdnow, **xlargs)
 
-            chunker.chunk(**xlday)
+        if xlargs.get('codas',False):
+            chops = xlargs['daily'].rsplit('_daily', 1)
+            if len(chops) == 1: chops = chops + ['']
+            xlargs['chunk'] = '_chunks'.join(chops)
+
+            chunker.chunk(jdnow, **xlargs)
 
     return xlargs

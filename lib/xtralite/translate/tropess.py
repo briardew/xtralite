@@ -6,7 +6,7 @@ Translate TROPESS retrievals to CoDAS format
 # http://www.apache.org/licenses/LICENSE-2.0
 #
 # Changelog:
-# 2022/04/26	Initial commit
+# 2022-04-26	Initial commit
 #
 # Todo:
 #===============================================================================
@@ -123,7 +123,7 @@ def translate(fin, ftr):
     ds = ds.assign(time=('nsound', time, {'units':'hhmmss',
         'long_name':'sounding date', '_FillValue':FILLINT}))
 
-    # Sort (why?!?)
+    # Sort (why?!?) -- Chunker will die if time is non-increasing
     ds = ds.sortby('time')
 
     # Finish up

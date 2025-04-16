@@ -13,7 +13,7 @@ NIES (GOSAT, GOSAT-2) support for xtralite
 # the given URLs.
 #
 # Changelog:
-# 2022/04/26	Initial commit
+# 2022-04-26	Initial commit
 #
 # Todo:
 #===============================================================================
@@ -30,7 +30,7 @@ from xtralite.patches import xarray as xr
 SERVE1 = 'https://data2.gosat.nies.go.jp'
 SERVE2 = 'sftp://prdct.gosat-2.nies.go.jp'
 
-varlist = ['swfp-co2', 'swfp-ch4', 'swpr-ch4', 'tir-co2', 'tir-ch4']
+varlist = ['co2-swfp', 'ch4-swfp', 'ch4-swpr', 'co2-tir', 'ch4-tir']
 satlist = ['gosat', 'gosat2']
 satday0 = [datetime(2009, 4, 1), datetime(2019, 3, 1)]
 namelist = ['nies_' + vv for vv in varlist]
@@ -45,9 +45,6 @@ def setup(**xlargs):
     xlargs['ftail'] = 'h5'
 #   xlargs['translate'] = translate
 
-    # Parse name as module_sensor_variable_satellite_version, e.g.,
-    #     nies_tir-ch4_gosat or nies_tir-ch4_gosat_v1.20r
-    # Unspecified fields are set by module or arguments
     xlargs = default.setup(**xlargs)
 
     # Time-specific variables
@@ -57,16 +54,16 @@ def setup(**xlargs):
         dget = jdnow.strftime('%Y%m')
 
         # Need to move this to setup and define new dict entry/ies
-        if xlargs['var'] == 'swfp-co2':
+        if xlargs['var'] == 'co2-swfp':
             tag = 'SWIRL2CO2'
             ver = 'v2.97r' if jdnow < datetime(2020, 6, 1) else 'v2.98r'
-        elif xlargs['var'] == 'swfp-ch4':
+        elif xlargs['var'] == 'ch4-swfp':
             tag = 'SWIRL2CH4'
             ver = 'v2.95r' if jdnow < datetime(2020, 6, 1) else 'v2.96r'
-        elif xlargs['var'] == 'tir-co2':
+        elif xlargs['var'] == 'co2-tir':
             tag = 'TIRL2CO2'
             ver = 'v1.20r'
-        elif xlargs['var'] == 'tir-ch4':
+        elif xlargs['var'] == 'ch4-tir':
             tag = 'TIRL2CH4'
             ver = 'v1.20r'
         # Needs informative error message
@@ -80,7 +77,7 @@ def setup(**xlargs):
     elif xlargs['sat'] == 'gosat2':
         dget = jdnow.strftime('%Y%m%d')
 
-        if xlargs['var'][:4] == 'swfp':
+        if xlargs['var'][-4:] == 'swfp':
             ver = 'v2.0r'
             ardir = 'pub/releaseData/standardProduct/FTS-2_L2/SWFP/0200/' + yrget
             if jdnow < datetime(2021, 1, 1):
@@ -89,7 +86,7 @@ def setup(**xlargs):
                 ftag = '02SWFPV0200020011'
             else:
                 ftag = '02SWFPV0200020012'
-        elif xlargs['var'][:4] == 'swpr':
+        elif xlargs['var'][-4:] == 'swpr':
             ver = 'v1.7r'
             ardir = 'pub/releaseData/standardProduct/FTS-2_L2/SWPR/0107/' + yrget
             if jdnow < datetime(2021, 1, 1):
@@ -143,8 +140,6 @@ def acquire(**xlargs):
         if len(glob(fday)) != 0 and not xlargs.get('repro',False):
             continue
 
-        print(' '.join(['curl', '--netrc', '--create-dirs', '-C', '-',
-            '-o', fout, ardir + '/' + fget]))
         pout = call(['curl', '--netrc', '--create-dirs', '-C', '-',
             '-o', fout, ardir + '/' + fget])
 

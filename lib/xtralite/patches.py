@@ -6,7 +6,7 @@ Monkey patches for xtralite
 # http://www.apache.org/licenses/LICENSE-2.0
 #
 # Changelog:
-# 2023/04/07	Initial commit
+# 2023-04-07	Initial commit
 #
 # Todo:
 #===============================================================================

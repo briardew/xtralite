@@ -6,7 +6,7 @@ Convert retrievals into xtralite and chunk for assimilation with CoDAS
 # http://www.apache.org/licenses/LICENSE-2.0
 #
 # Changelog:
-# 2022/04/26	Initial commit
+# 2022-04-26	Initial commit
 #
 # Todo:
 # * Improve filename handing to reduce/simplify calls to fhead, etc.
@@ -30,7 +30,6 @@ TNAMEDEF  = 'time'
 RECDIMDEF = 'nsound'
 FTAILDEF  = '.nc'
 
-#===============================================================================
 def split3hr(fin, date, **xlargs):
     '''Split daily file into 3-hour chunks'''
     LENHR = 10000
@@ -40,9 +39,9 @@ def split3hr(fin, date, **xlargs):
     FTOUT  = xlargs.get('ftout',  FTAILDEF)
     FHOUT  = xlargs['fhout']
 
-    if VERBOSE: print('Splitting   ' + path.basename(fin))
+    if VERBOSE: print('* Splitting   ' + path.basename(fin))
 
-#   1. Read time data
+    # 1. Read time data
     ds = xr.open_dataset(fin) 
     itimes = ds[TNAME].values
     ds.close()
@@ -51,20 +50,20 @@ def split3hr(fin, date, **xlargs):
     ihours = itimes//LENHR
     chunks = np.zeros([8, 4], dtype=int)
 
-#   2. Compute indices to split at
+    # 2. Compute indices to split at
     nF = -1
     for ic in range(8):
         n0 = nF + 1
         it0 = 3*ic
         itF = 3*(ic + 1)
 
-#       Assume failure
+        ## Assume failure
         chunks[ic,:] = [it0, itF, -1, -1]
 
         if nrec == n0: continue				# no records left to read?
         if itF <= ihours[n0]: continue			# no records in the interval?
 
-#       Success! add em up
+        ## Success! add em up
         nF = n0
         while nF < nrec-1:
             if itF <= ihours[nF+1]: break
@@ -74,7 +73,7 @@ def split3hr(fin, date, **xlargs):
 
     if DEBUG: print(chunks)
 
-#   3. Write split files
+    # 3. Write split files
     for ic in range(8):
         vals = chunks[ic,:]
         hour = str(vals[0]).zfill(2)
@@ -82,7 +81,7 @@ def split3hr(fin, date, **xlargs):
             '.bit' + FTOUT)
 
         if int(vals[2]) != -1:
-            if VERBOSE: print('Writing ' + path.basename(ftmp))
+            if VERBOSE: print('* Writing     ' + path.basename(ftmp))
 
             ds = xr.open_dataset(fin)
             ds = ds.isel({RECDIM:range(vals[2],vals[3]+1)})
@@ -91,7 +90,6 @@ def split3hr(fin, date, **xlargs):
 
     if RMTMPS: pout = call(['rm', fin])
 
-#===============================================================================
 # This subroutine should receive the two the file strings fleft, frite, and
 # fout, which should be constructed in the chunker subroutine; that way we can
 # test it easily; the for loop should thus go to chunker too
@@ -124,7 +122,7 @@ def paste6hr(date, dprv, **xlargs):
 
         if len(flist) == 0: continue
 
-#       Build input file list
+        # Build input file list
         inlist = []
         for ff in flist:
             ds = xr.open_dataset(ff)
@@ -133,13 +131,13 @@ def paste6hr(date, dprv, **xlargs):
             ds.close()
         input_files = ', '.join(inlist)
 
-#       Only overwrite existing files if we are reprocessing
+        # Only overwrite existing files if we are reprocessing
         if not path.isfile(fout) or xlargs.get('repro',False):
-            if VERBOSE: print('Writing ' + path.basename(fout))
+            if VERBOSE: print('* Writing     ' + path.basename(fout))
 
             pout = call(['mkdir', '-p', DIROUT])
 
-            # An unfortunate hack to keep RECDIM dtype constant
+            ## An unfortunate hack to keep RECDIM dtype constant
             ds = xr.open_dataset(flist[0])
             dtype = ds[RECDIM].dtype
             ds.close()
@@ -157,9 +155,9 @@ def paste6hr(date, dprv, **xlargs):
             ds.close()
 
         if RMTMPS: pout = call(['rm', '-f', fleft, frght])
+    if VERBOSE: print('---')
 
-#===============================================================================
-def chunk(**xlargs):
+def chunk(jdnow, **xlargs):
     '''Run chunker over the specified days'''
 
     FHEAD = xlargs['fhead']
@@ -168,7 +166,6 @@ def chunk(**xlargs):
     FTOUT = xlargs.get('ftout', FTAILDEF)
     translate = xlargs['translate']
 
-    jdnow = xlargs['jdbeg']
     jdprv = jdnow + timedelta(-1)
     jdnxt = jdnow + timedelta(+1)
 
@@ -187,31 +184,40 @@ def chunk(**xlargs):
     flist = glob(path.join(DIRIN, FHEAD + dget + '*' + FTAIL))
     ftr = path.join(xlargs['chunk'], FHOUT + dnow + '.trans' + FTOUT)
 
-    if 0 < len(flist):
-        if VERBOSE: print('---')
+    if VERBOSE: print('---')
 
-#       Use newest matching file for input (may be different versions)
+    # Somewhat strange construction meant to get past
+    # xarray multi-threading hangs
+    if len(flist) > 0:
+        # Use newest matching file for input (may be different versions)
         fin = sorted(flist, key=path.getmtime)[-1]
 
-        print('Processing  ' + path.basename(fin))
+        print('* Processing  ' + path.basename(fin))
         pout = call(['mkdir', '-p', xlargs['chunk']])
 
-#       Convert data to standard format
+        # Convert data to standard format
         if VERBOSE:
-            print('Translating ' + path.basename(fin))
-            print('         to ' + path.basename(ftr))
-        translate(fin, ftr)
+            print('* Translating ' + path.basename(fin))
+            print('           to ' + path.basename(ftr))
+        try:
+            translate(fin, ftr)
+        except Exception as err:
+            print(err)
+            ftr = None
+    else:
+        ftr = None
 
-#       Set input filename
+    if ftr is not None:
+        # Set input filename
         with xr.open_dataset(ftr) as ds:
             ds.load()
         ds.attrs['input_files'] = path.basename(fin)
         ds.to_netcdf(ftr)
         ds.close()
 
-#       Split day into 3-hour bits
+        # Split day into 3-hour bits
         split3hr(ftr, dnow, **xlargs)
 
-#   3. Paste 3-hour bits together into 6-hour chunks
-#   (outside existence check to capture previous day's soundings)
+    # 3. Paste 3-hour bits together into 6-hour chunks
+    # (outside existence check to capture previous day's soundings)
     paste6hr(dnow, dprv, **xlargs)

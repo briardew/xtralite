@@ -6,7 +6,7 @@ Translate MOPITT retrievals to CoDAS format
 # http://www.apache.org/licenses/LICENSE-2.0
 #
 # Changelog:
-# 2022/04/26	Initial commit
+# 2022-04-26	Initial commit
 #
 # Todo:
 #===============================================================================
@@ -21,12 +21,12 @@ from xtralite.patches import xarray as xr
 
 NEDGE = 11
 
-PROUNIT = 'log10(mol/mol)'
-OBSUNIT = 'mol/m^2'
-OBSCONV = 6.02214076E19
+PROUNIT = 'ppb'
+OBSUNIT = 'ppb'
 
 DFSMIN = 0.25			# Minimum degrees-of-freedom (#)
-TSMAX  = 320			# Maximum surface temperature (K)
+TSMAX  =  46.00	+ 273.15	# Maximum TIR surface temperature (K)
+TSMIN  = -15.00 + 273.15	# Maximum TIR surface temperature (K)
 NIRSZA = 60			# Maximum NIR solar zenith angle (deg)
 
 FILLINT = np.int32(-9999)
@@ -52,6 +52,8 @@ def translate(fin, ftr, radtype):
 
     inan = np.isnan(ds['avgker'].values)
     ds['avgker'].values[inan] = 0.
+
+    ds.attrs['conversion'] = '6.02214076E19 molec cm-2 = 1 mol m-2'
 
     # Dimension sizes needed below
     nsound = ds.sizes['nsound']
@@ -80,45 +82,12 @@ def translate(fin, ftr, radtype):
     ds = ds.assign(time=('nsound', time, {'units':'hhmmss',
         'long_name':'sounding date', '_FillValue':FILLINT}))
 
-    # Assign prior obs, obs, and uncert
-    tcoapr = dsdata['APrioriCOTotalColumn'].values
-    tcoret = dsdata['RetrievedCOTotalColumn'].values
-    drycol = dsdata['DryAirColumn'].values
-
-    ## Convert from #/cm^2 to mol/m^2
-    priorobs = tcoapr / OBSCONV
-    obs = tcoret[:,0] / OBSCONV
-    uncert = tcoret[:,1] / OBSCONV
-    for kk in range(navg):
-        ds['avgker'].values[:,kk] = ds['avgker'].values[:,kk] / OBSCONV
-
-    ds['avgker'].attrs['units'] = OBSUNIT + ' / ' + PROUNIT
-
-    ds = ds.assign(priorobs=('nsound', priorobs, {'units':OBSUNIT,
-        'long_name':'prior obs', 'comment':'# cm^-2 / '+str(OBSCONV)}))
-    ds = ds.assign(obs=('nsound', obs, {'units':OBSUNIT,
-        'long_name':'obs value', 'comment':'# cm^-2 / '+str(OBSCONV)}))
-    ds = ds.assign(uncert=('nsound', uncert, {'units':OBSUNIT,
-        'long_name':'obs uncertainty', 'comment':'# cm^-2 / '+str(OBSCONV)}))
-
-    # Assign quality flags
-    qc5 = dsdata['RetrievalAnomalyDiagnostic'].values
-    tsurf = dsdata['RetrievedSurfaceTemperature'].values
-    dfs = dsdata['DegreesofFreedomforSignal'].values
-    sza = dsdata['SolarZenithAngle'].values
-    isbad = (np.sum(qc5, axis=1) + (tcoret[:,1] <= 0) + (TSMAX < tsurf[:,1])
-        + (dfs < DFSMIN))
-    if (radtype[0].upper() == 'N'): isbad = isbad + (NIRSZA < sza)
-
-    ds = ds.assign(isbad=('nsound', isbad, {'units':'none',
-        'long_name':'obs flagged as bad?'}))
-
     # Assign pressure edges
     psurf = dsdata['SurfacePressure'].values
     peavg = np.zeros((nsound,NEDGE), dtype=psurf.dtype)
     peavg[:,0] = psurf
     for kk in range(1,NEDGE-1):
-        peavg[:,kk] = 1000. - (kk - 1)*100.
+        peavg[:,kk] = 1000. - kk*100.
         peavg[:,kk] = np.minimum(peavg[:,kk], psurf)
     peavg[:,NEDGE-1] = 26.
 
@@ -126,6 +95,41 @@ def translate(fin, ftr, radtype):
         {'units':'#', 'long_name':'vertical grid edge number'}))
     ds = ds.assign(peavg=(('nsound','nedge'), peavg, {'units':'hPa',
         'long_name':'pressure edges'}))
+
+    # Assign prior obs, obs, and uncert
+    tcoapr = dsdata['APrioriCOTotalColumn'].values
+    tcoret = dsdata['RetrievedCOTotalColumn'].values
+    drycol = dsdata['DryAirColumn'].values
+
+    ## Transform totals to ppb
+    priorobs = tcoapr / drycol * 1.e9
+    obs = tcoret[:,0] / drycol * 1.e9
+    uncert = tcoret[:,1] / drycol * 1.e9
+    for kk in range(navg):
+        ds['avgker'].values[:,kk] = ds['avgker'].values[:,kk] / drycol * 1.e9
+
+    ds = ds.assign(priorobs=('nsound', priorobs, {'units':OBSUNIT,
+        'long_name':'prior obs'}))
+    ds = ds.assign(obs=('nsound', obs, {'units':OBSUNIT,
+        'long_name':'obs value'}))
+    ds = ds.assign(uncert=('nsound', uncert, {'units':OBSUNIT,
+        'long_name':'obs uncertainty'}))
+    ds = ds.assign(drycol=('nsound', drycol, {'units':'# cm-2',
+        'long_name':'dry air column'}))
+
+    # Assign quality flags
+    qc5 = dsdata['RetrievalAnomalyDiagnostic'].values
+    tsurf = dsdata['RetrievedSurfaceTemperature'].values
+    dfs = dsdata['DegreesofFreedomforSignal'].values
+    sza = dsdata['SolarZenithAngle'].values
+    isbad = np.sum(qc5, axis=1) + (tcoret[:,0] <= 0) + (dfs < DFSMIN)
+    if (radtype[0].upper() == 'N'):
+        isbad = isbad + (tsurf[:,0] < TSMIN) + (NIRSZA < sza)
+    else:
+        isbad = isbad + (TSMAX < tsurf[:,0])
+
+    ds = ds.assign(isbad=('nsound', isbad, {'units':'none',
+        'long_name':'obs flagged as bad?'}))
 
     # Assign prior profile
     scoapr = dsdata['APrioriCOSurfaceMixingRatio'].values
@@ -136,16 +140,17 @@ def translate(fin, ftr, radtype):
         ksurf = np.argmax(peavg[nn,:] < psurf[nn])
         ## Fill layers up to surface w/ surface value
         for kk in range(ksurf):
-            priorpro[nn,kk] = scoapr[nn,1]
+            priorpro[nn,kk] = scoapr[nn,0]
         ## Fill layers above surface w/ profile values
         for kk in range(ksurf,navg):
-            priorpro[nn,kk] = pcoapr[nn,kk-1,1]
-
-    ## Convert prior profile from ppb to log10(mol/mol)
-    priorpro = np.log10(priorpro) - 9.
+            priorpro[nn,kk] = pcoapr[nn,kk-1,0]
 
     ds = ds.assign(priorpro=(('nsound','navg'), priorpro, {'units':PROUNIT,
         'long_name':'prior profile'}))
+
+    ## Convert averaging kernel from taking log10(mol/mol) to ppb
+    ds['avgker'].values = ds['avgker'].values / (priorpro * np.log(10.))
+    ds['avgker'].attrs['units'] = OBSUNIT + ' / ' + PROUNIT
 
     # Finish up
     ds.to_netcdf(ftr)

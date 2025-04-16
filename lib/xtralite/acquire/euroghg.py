@@ -6,7 +6,7 @@ European GHG (SCIAMACHY, GOSAT, etc.) product support for xtralite
 # http://www.apache.org/licenses/LICENSE-2.0
 #
 # Changelog:
-# 2022/04/26	Initial commit
+# 2022-04-26	Initial commit
 #
 # Todo:
 #===============================================================================
@@ -16,27 +16,28 @@ from os import path
 from subprocess import call
 from datetime import datetime, timedelta
 
-# I think the former is a link to the latter
-#SERVE = 'https://data.ceda.ac.uk/neodc'
-SERVE = 'https://dap.ceda.ac.uk/neodc'
+# Sometimes one works and not the other; no idea why
+SERVE = 'https://data.ceda.ac.uk/neodc'
+#SERVE = 'https://dap.ceda.ac.uk/neodc'
 
-modlist  = ['besd', 'wfmd', 'imap', 'ocpr']
+# leic(ester), uol, and ocpr are different names for same thing
+modlist  = ['besd', 'wfmd', 'imap', 'ocpr', 'leic', 'uol']
 varlist  = ['co2', 'ch4']
 satlist  = ['sciam', 'gosat']
 satday0  = [datetime(2002,10, 1), datetime(2009, 4, 1)]
 # There are BESD XCO2 GOSAT retrievals somewhere that I can't find
 # Would only use for NRT
 namelist = ['besd_co2_sciam', 'wfmd_co2_sciam', 'wfmd_ch4_sciam',
-    'imap_ch4_sciam', 'ocpr_ch4_gosat']
+    'imap_ch4_sciam', 'ocpr_ch4_gosat', 'leic_ch4_gosat', 'uol_ch4_gosat']
 
-def setup(**xlargs):
+def setup(jdnow, **xlargs):
     from xtralite.acquire import default
     from xtralite.translate.euroghg import translate
 
     # Make everything sit in euroghg directory
     xlargs['head'] = xlargs.get('head', path.join('data', 'euroghg'))
 
-    xlargs = default.setup(**xlargs)
+    xlargs = default.setup(jdnow, **xlargs)
 
     var = xlargs.get('var', '*')
     if '*' not in var:
@@ -44,28 +45,23 @@ def setup(**xlargs):
 
     return xlargs
 
-def acquire(**xlargs):
-    # Get retrieval arguments
+def acquire(jdnow, **xlargs):
+#   Get retrieval arguments
     mod = xlargs.get('mod', '*')
     var = xlargs.get('var', '*')
     sat = xlargs.get('sat', '*')
     ver = xlargs.get('ver', '*')
 
-    # Lower variables for ease
+#   Lower variables for ease
     modlo = mod.lower()
     varlo = var.lower()
     satlo = sat.lower()
     verlo = ver.lower()
 
-    # Greedy match all SCIAMACHY abbreviations
+#   Greedy match all SCIAMACHY abbreviations
     if satlo[:3] == 'sci': satlo = 'sciam'
 
-    # Determine timespan
-    jdbeg = xlargs.get('jdbeg', datetime(1980, 1, 1))
-    jdend = xlargs.get('jdend', datetime.now())
-    ndays = (jdend - jdbeg).days + 1
-
-    # Set version (ver) and archive directory (ardir) based on retrieval
+#   Set version (ver) and archive directory (ardir) based on retrieval
     if modlo == 'besd':
         if varlo != 'co2' or satlo != 'sciam':
             sys.stderr.write('*** WARNING *** BESD retrieval only ' +
@@ -94,7 +90,6 @@ def acquire(**xlargs):
         ardir = 'esacci/ghg/data/crdp_4/SCIAMACHY/CH4_SCI_IMAP/' + ver[:-1]
         fhead = 'ESACCI-GHG-L2-CH4-SCIAMACHY-IMAP-'
 
-    # leic(ester), uol, and ocpr are different names for same thing
     elif modlo in ['leic', 'uol', 'ocpr']:
         if varlo != 'ch4' or satlo != 'gosat':
             sys.stderr.write('*** WARNING *** Leicester retrieval only ' +
@@ -104,11 +99,11 @@ def acquire(**xlargs):
         ardir = 'gosat/data/ch4/nceov1.0/CH4_GOS_OCPR'
         fhead = 'UoL-GHG-L2-CH4-GOSAT-OCPR-'
 
-    # Set output directory
+#   Set output directory
     xlargs['daily'] = (xlargs['head'] + '/' + mod + '/' + var +
             '/' + sat + '_' + ver + '_daily')
 
-    # Set codas keys
+#   Set codas keys
     if xlargs.get('codas',False):
         xlargs['fhead'] = fhead
         xlargs['fhout'] = mod + '_' + var + '_' + sat + '_' + ver + '.'
@@ -117,17 +112,15 @@ def acquire(**xlargs):
             if len(chops) == 1: chops = chops + ['']
             xlargs['chunk'] = '_chunks'.join(chops)
 
-    # Download
+#   Download
     wgargs = xlargs.get('wgargs', None)
-    for nd in range(ndays):
-        jdnow = jdbeg + timedelta(nd)
-        yrnow = str(jdnow.year)
-        yrget = str(jdnow.year)
-        dget = yrget + str(jdnow.month).zfill(2) + str(jdnow.day).zfill(2)
-        fget = '*-' + dget + '-*' + xlargs['ftail']
+    yrnow = str(jdnow.year)
+    yrget = str(jdnow.year)
+    dget = yrget + str(jdnow.month).zfill(2) + str(jdnow.day).zfill(2)
+    fget = '*-' + dget + '-*' + xlargs['ftail']
 
-        pout = call(['wget', '--no-check-certificate'] + wgargs +
-            [SERVE + '/' + ardir + '/' + jdnow.strftime('%Y') + '/',
-            '-A', fget, '-P', xlargs['daily'] + '/Y' + yrnow])
+    pout = call(['wget', '--no-check-certificate'] + wgargs +
+        [SERVE + '/' + ardir + '/' + jdnow.strftime('%Y') + '/',
+        '-A', fget, '-P', xlargs['daily'] + '/Y' + yrnow])
 
     return xlargs

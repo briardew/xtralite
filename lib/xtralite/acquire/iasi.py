@@ -6,7 +6,7 @@ IASI support for xtralite
 # http://www.apache.org/licenses/LICENSE-2.0
 #
 # Changelog:
-# 2022/04/26	Initial commit
+# 2022-04-26	Initial commit
 #
 # Todo:
 #===============================================================================
@@ -18,110 +18,117 @@ from datetime import datetime, timedelta
 
 SERVE = 'https://cds-espri.ipsl.fr'
 # HNO3 and other NRT products available from Eumetcast
-# CH4 from C3S
+# CH4 from C3S?
 # Also cf acsaf.org
 
+modname = 'iasi'
 varlist = ['co', 'ch4', 'co2', 'hcooh', 'nh3', 'so2', 'hno3']
 satlist = ['metop-a', 'metop-b', 'metop-c']
 satday0 = [datetime(2007,10, 1), datetime(2012, 9, 1), datetime(2018,11, 1)]
-namelist = ['iasi_' + vv for vv in varlist]
+namelist = [modname + '_' + vv for vv in varlist]
 
-def setup(**xlargs):
+FTAIL = '.nc'
+
+def setup(jdnow, **xlargs):
     from xtralite.acquire import default
     from xtralite.translate.iasi import translate
 
-    xlargs = default.setup(**xlargs)
+    mod = modname
+    xlargs['mod'] = mod
+    xlargs['ftail'] = FTAIL
 
-    var = xlargs.get('var', '*')
-    if '*' not in var:
-        xlargs['translate'] = translate[var.lower()]
+    xlargs = default.setup(jdnow, **xlargs)
+
+    var = xlargs['var']
+    sat = xlargs['sat']
+
+    varup = var.upper()
+    satup = sat.upper()
+    yrnow = str(jdnow.year)
+    dget  = yrnow + str(jdnow.month).zfill(2) + str(jdnow.day).zfill(2)
+
+    # Set version and filename based on variable and date
+    if varup == 'CH4' or varup == 'CO2':
+        if jdnow < datetime(2024, 7, 1):
+            ver   = 'v10.2r'
+            verin = 'V10.2'
+        else:
+            ver   = 'v10.1r'
+            verin = 'V10.1'
+        fhead = varup + '_IASI' + satup[-1] + '_NLIS_' + verin.lower() + '_'
+        fget  = fhead + dget + FTAIL
+    elif varup == 'HCOOH':
+        ver   = 'v1.0r'
+        verin = 'V1.0.0'
+        fhead = 'IASI_METOP' + satup[-1] + '_L2_' + varup + '_COLUMN_'
+        fget  = fhead + dget + '_ULB-LATMOS_' + verin + FTAIL
+    elif varup == 'NH3':
+        ver   = 'v3.1r'
+        verin = 'V3.1.0'
+        fhead = 'IASI_METOP' + satup[-1] + '_L2_' + varup + '_'
+        fget  = fhead + dget + '_ULB-LATMOS_' + verin + FTAIL
+    elif varup == 'SO2':
+        ver   = 'v2.1r'
+        verin = 'V2.1.0'
+        fhead = 'IASI_METOP' + satup[-1] + '_L2_' + varup + '_'
+        fget  = fhead + dget + '_ULB-LATMOS_' + verin + FTAIL
+    # Someone always has to be special
+    elif varup == 'CO':
+        ver    = 'v1.2.1r'
+        verin  = 'V1.2.1'
+        verget = 'CDR_' + verin
+        if satup[-1] == 'B':
+            if datetime(2024, 1, 1) <= jdnow:
+                ver    = 'v6.7.1f'
+                verin  = 'V6.7.1'
+                verget = 'ICDR_' + verin
+        elif satup[-1] == 'C':
+            if datetime(2023, 3,31) <= jdnow:
+                ver    = 'v6.7.1f'
+                verin  = 'V6.7.1'
+                verget = 'ICDR_' + verin
+            else:
+                ver    = 'v6.5.1f'
+                verin  = 'V6.5.1'
+                verget = 'ICDR_' + verin
+
+        fhead = 'IASI_METOP' + satup[-1] + '_L2_' + varup + '_'
+        fget  = fhead + dget + '_ULB-LATMOS_' + verget + FTAIL
+
+    # Directory and filename information
+    head  = xlargs['head']
+    daily = path.join(head, mod, var, sat + '_' + ver + '_daily')
+    chunk = path.join(head, mod, var, sat + '_' + ver + '_chunks')
+
+    xlargs['daily'] = daily
+    xlargs['prep']  = daily
+    xlargs['chunk'] = chunk
+
+    xlargs['fhead'] = fhead
+    xlargs['fget']  = fget
+    xlargs['fhout'] = mod + '_' + var + '_' + sat + '_' + ver + '.'
+    xlargs['ardir'] = ('iasi' + sat[-1].lower() + 'l2/' +
+        'iasi_' + var.lower() + '/' + verin)
+    xlargs['wgargs'] = ['-N', '-c']
+
+    if '*' not in var: xlargs['translate'] = translate[var.lower()]
 
     return xlargs
 
-def acquire(**xlargs):
-    mod = xlargs.get('mod', '*')
-    var = xlargs.get('var', '*')
-    sat = xlargs.get('sat', '*')
-
-    varlo = var.lower()
-    satlet = sat[-1]
-
-    # Determine timespan
-    jdbeg = xlargs.get('jdbeg', min(satday0))
-    jdend = xlargs.get('jdend', datetime.now())
-    ndays = (jdend - jdbeg).days + 1
+def acquire(jdnow, **xlargs):
+    # Get retrieval arguments
+    xlargs = setup(jdnow, **xlargs)
+    fget  = xlargs['fget']
+    ardir = xlargs['ardir']
+    wgargs = xlargs.get('wgargs', None)
 
     # Download
-    wgargs = xlargs.get('wgargs', None)
-    for nd in range(ndays):
-        jdnow = jdbeg + timedelta(nd)
-        yrnow = str(jdnow.year)
-        dget = yrnow + str(jdnow.month).zfill(2) + str(jdnow.day).zfill(2)
+    yrnow = str(jdnow.year)
 
-        # Set version and filename based on variable and date
-        ftail = '.nc'
-        if varlo == 'ch4' or varlo == 'co2':
-            verin  = 'V9.1'
-            verout = 'v9.1r'
-            fhead  = (var.upper() + '_IASI' + satlet.upper() + '_NLIS_' +
-                verin.lower() + '_')
-            fget   = fhead + dget + ftail
-        if varlo == 'hcooh':
-            verin  = 'V1.0.0'
-            verout = 'v1.0r'
-            fhead  = ('IASI_METOP' + satlet.upper() + '_L2_' + var.upper() +
-                '_COLUMN_')
-            fget   = fhead + dget + '_ULB-LATMOS_' + verin + ftail
-        if varlo == 'nh3':
-            verin  = 'V3.1.0'
-            verout = 'v3.1r'
-            fhead  = ('IASI_METOP' + satlet.upper() + '_L2_' + var.upper() +
-                '_')
-            fget   = fhead + dget + '_ULB-LATMOS_' + verin + ftail
-        if varlo == 'so2':
-            verin  = 'V2.1.0'
-            verout = 'v2.1r'
-            fhead  = ('IASI_METOP' + satlet.upper() + '_L2_' + var.upper() +
-                '_')
-            fget   = fhead + dget + '_ULB-LATMOS_' + verin + ftail
-
-        # Someone always has to be special
-        if varlo == 'co':
-            verin  = 'v20151001'
-            verbug = 'V20151001.0'
-            verout = 'v2015r'
-            if datetime(2019, 5,14) <= jdnow:
-                verin  = 'V6.4.0'
-                verbug = verin
-                verout = 'v6.4f'
-            if datetime(2019,12, 5) <= jdnow:
-                verin  = 'V6.5.0'
-                verbug = verin
-                verout = 'v6.5f'
-
-            fhead = 'IASI_METOP' + satlet.upper() + '_L2_' + var.upper() + '_'
-            fget  = fhead + dget + '_ULB-LATMOS_' + verbug + ftail
-        ver = verout
-
-        ardir = ('iasi' + satlet.lower() + 'l2/' +
-            'iasi_' + var.lower() + '/' + verin)
-
-        # Directory and filename information
-        xlargs['daily'] = path.join(xlargs['head'], mod, var,
-            sat + '_' + ver + '_daily')
-
-        chops = xlargs['daily'].rsplit('_daily', 1)
-        if len(chops) == 1: chops = chops + ['']
-        xlargs['chunk'] = '_chunks'.join(chops)
-
-        xlargs['fhead'] = fhead
-        xlargs['ftail'] = ftail
-        xlargs['fhout'] = mod + '_' + var + '_' + sat + '_' + ver + '.'
-
-        # Download daily files
-        cmd = (['wget', '--no-check-certificate'] + wgargs +
-            [SERVE + '/' + ardir + '/' + jdnow.strftime('%Y/%m') + '/' +
-            fget, '-P', xlargs['daily'] + '/Y' + yrnow])
-        pout = call(cmd)
+    # Download daily files
+    cmd = (['wget', '--no-check-certificate'] + wgargs +
+        [SERVE + '/' + ardir + '/' + jdnow.strftime('%Y/%m') +
+        '/' + fget, '-P', xlargs['daily'] + '/Y' + yrnow])
+    pout = call(cmd)
 
     return xlargs
