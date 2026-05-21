@@ -23,7 +23,8 @@ TROPOMI support for xtralite
 #===============================================================================
 
 import sys
-from os import path, remove, rmdir
+from os import path, makedirs
+from shutil import rmtree
 from subprocess import call, PIPE, Popen
 from glob import glob
 from datetime import datetime, timedelta
@@ -45,14 +46,7 @@ namelist = [modname + '_' + vv for vv in varlist]
 JDNRT = datetime(2022, 7,26)
 
 SERVE = 'https://tropomi.gesdisc.eosdis.nasa.gov/data'
-WGETCMD = 'wget'
-#WGETCMD = path.expanduser('~/bin/borg-wget.sh')
-
-#wget "https://s5phub.copernicus.eu/dhus/search?q=beginPosition:[2023-07-05T00:00:00.000Z TO 2023-07-05T23:59:59.999Z] AND ( (platformname:Sentinel-5 AND producttype:L2__NO2___ AND processinglevel:L2 AND processingmode:Near real time))&rows=100&start=100" --output-document=query_results.txt
-#for uuid in $(grep uuid query_results.txt | sed -e "s/.*>\(.*\)<.*/\1/"); do
-#    wget --content-disposition --continue "https://s5phub.copernicus.eu/dhus/odata/v1/Products('$uuid')/\$value"
-#done
-
+WGETCMD = 'wget -nv'
 RMTMPS = True				# remove temporary files?
 RMORBS = True				# remove orbit files?
 
@@ -99,7 +93,7 @@ def acquire(jdnow, **xlargs):
     # Check for NCO utilities
     # (will be removed soon, some retrievals still use these)
     try:
-        pout = Popen('ncks', stdout=PIPE)
+        pout = Popen(['ncks', '--help'], stdout=PIPE)
     except OSError:
         sys.stderr.write('*** ERROR *** NCO executables not in $PATH\n\n')
         sys.exit(2)
@@ -135,17 +129,24 @@ def acquire(jdnow, **xlargs):
         CLMAX = float('nan')
         VCLOUD = ''
         VCHECK = 'methane_mixing_ratio_bias_corrected'
-        dnames = dnames + ['level']
-        vnames1d  = vnames1d  + ['methane_mixing_ratio',
+        dnames = dnames + ['level', 'corner']
+        vnames1d  = vnames1d  + ['surface_albedo_SWIR',
+            'surface_albedo_NIR',
+            'aerosol_optical_thickness_SWIR',
+            'aerosol_optical_thickness_NIR',
+            'methane_mixing_ratio',
             'methane_mixing_ratio_bias_corrected',
+            'methane_mixing_ratio_blended',
             'methane_mixing_ratio_precision']
         vnames2d  = vnames2d  + ['column_averaging_kernel',
-            'methane_profile_apriori', 'altitude_levels', 'dry_air_subcolumns']
+            'methane_profile_apriori', 'altitude_levels', 'dry_air_subcolumns',
+            'latitude_bounds', 'longitude_bounds']
     elif varlo == 'co':
         CLMAX = float('nan')
         VCLOUD = ''
         VCHECK = 'carbonmonoxide_total_column'
         vnames1d = vnames1d + ['surface_altitude',
+            'water_total_column',
             'carbonmonoxide_total_column',
             'carbonmonoxide_total_column_precision']
         vnames2d = vnames2d + ['column_averaging_kernel']
@@ -190,12 +191,12 @@ def acquire(jdnow, **xlargs):
     dnow  = yrnow + str(jdnow.month).zfill(2) + str(jdnow.day).zfill(2)
 
     DLITE  = xlargs['daily']
-    DIRTMP = DLITE + '/tmp'
+    DIRTMP = path.join(DLITE, 'tmp')
     DORBIT = DLITE[:-6] + '_orbit'
     FHOUT  = xlargs['fhout']
 
     # Return if output exists and not reprocessing
-    fout = DLITE + '/Y' + yrnow + '/' + FHOUT + dnow + FTAIL
+    fout = path.join(DLITE, 'Y'+yrnow, FHOUT+dnow+FTAIL)
     if path.isfile(fout) and not xlargs.get('repro',False):
         return xlargs
 
@@ -204,44 +205,60 @@ def acquire(jdnow, **xlargs):
     if vardir == 'O3': vardir = vardir + '_TOT'
     ardir = (sat.upper() + '_TROPOMI_Level2/' + sat.upper() + '_L2__' +
         vardir + '_' * (6 - len(vardir)))
+    # NB: v1L and v1H are deprecated
     if ver[:3] == 'v1L':
         ardir = ardir + '.1'
+        arver = '1'
     elif ver[:3] == 'v1H':
         ardir = ardir + '_HiR.1'
+        arver = '1'
     elif ver[:2] == 'v2':
         ardir = ardir + '_HiR.2'
+        arver = '2'
 
     # Set wildcard for files to download
-    if ver[-1] == 'r':
-        fwild = '*_' + 'RPRO' + '_*_' + dnow + 'T*_*' + FTAIL
-    elif ver[-1] == 'f':
-        fwild = '*_' + 'OFFL' + '_*_' + dnow + 'T*_*' + FTAIL
+    # NB: Sometimes TROPOMI reprocesses random days and I have no way of
+    # knowing. So we're just making reprocessed restrictive and everything
+    # else matches everything. Revisit (Keller's daemon)
+    if ver[-1].lower() == 'r':
+        fmode = 'RPRO'
+    elif ver[-1].lower() == 'n':
+        fmode = 'NRTI'
     else:
-        fwild = '*_' + '*'    + '_*_' + dnow + 'T*_*' + FTAIL
+        fmode = 'OFFL'
+    fwild = '*_' + fmode + '_*_' + dnow + 'T*_*' + FTAIL
 
     # Download orbit files
-    pout = call(['mkdir', '-p', DORBIT + '/Y' + yrnow])
-    for mm in range(-1,2):
-        pout = call(WGETCMD + ' --load-cookies ~/.urs_cookies ' +
-            '--save-cookies ~/.urs_cookies ' +
-            '--auth-no-challenge=on --keep-session-cookies ' +
-            '--content-disposition ' + ' '.join(wgargs) + ' ' +
-            SERVE + '/' + ardir + '/' + 
-            (jdnow + timedelta(mm)).strftime('%Y/%j') + '/' +
-            ' -A "' + fwild + '" -P ' + DORBIT + '/Y' + yrnow, shell=True)
+    DORNOW = path.join(DORBIT, 'Y'+yrnow)
+    makedirs(DORNOW, exist_ok=True)
+#   for mm in range(-1,2):
+#       pout = call(WGETCMD + ' --load-cookies ~/.urs_cookies ' +
+#           '--save-cookies ~/.urs_cookies ' +
+#           '--auth-no-challenge=on --keep-session-cookies ' +
+#           '--content-disposition ' + ' '.join(wgargs) + ' ' +
+#           SERVE + '/' + ardir + '/' + 
+#           (jdnow + timedelta(mm)).strftime('%Y/%j') + '/' +
+#           ' -A "' + fwild + '" -P ' + path.join(DORBIT, 'Y'+yrnow),
+#           shell=True)
+    pout = call([path.expanduser('~/bin/tropomi_download.py'), varlo,
+        jdnow.strftime('%Y-%m-%d'), '--mode', fmode, '--ver', arver,
+        '--output', DORNOW])
+    if varlo == 'ch4':
+        pout = call([path.expanduser('~/bin/tropomi_blend.py'), DORNOW,
+            path.expanduser('~/share/tropomi_model.pkl')])
 
     # Convert orbit files into daily lite files
     # ---
     sound0 = 0
-    flist  = glob(DORBIT + '/Y' + yrnow + '/' + fwild)
+    flist  = glob(path.join(DORNOW, fwild))
     for ff in sorted(flist):
         # Create temporary filenames
         fone = ('_one' + FTAIL).join(ff.rsplit(FTAIL,1))
         ftwo = ('_two' + FTAIL).join(ff.rsplit(FTAIL,1))
-        fone = fone.replace(DORBIT + '/Y' + yrnow, DIRTMP, 1)
-        ftwo = ftwo.replace(DORBIT + '/Y' + yrnow, DIRTMP, 1)
+        fone = fone.replace(DORNOW, DIRTMP, 1)
+        ftwo = ftwo.replace(DORNOW, DIRTMP, 1)
 
-        pout = call(['mkdir', '-p', DIRTMP])
+        makedirs(DIRTMP, exist_ok=True)
 
         # Create temporary file with the variables we need (fone) and
         # empty file with just the dimensions we need (ftwo)
@@ -394,10 +411,10 @@ def acquire(jdnow, **xlargs):
         if nsound == 0: pout = call(['rm', ftwo])
 
     # Create lite file from orbit files
-    fcat = sorted(glob(DIRTMP + '/*_' + dnow + 'T*_*_two' + FTAIL))
-    ftmp = fout.replace(DLITE + '/Y' + yrnow, DIRTMP, 1)
+    fcat = sorted(glob(path.join(DIRTMP, '*_'+dnow+'T*_*_two'+FTAIL)))
+    ftmp = fout.replace(path.join(DLITE, 'Y'+yrnow), DIRTMP, 1)
     if len(fcat) > 0:
-        pout = call(['mkdir', '-p', DLITE + '/Y' + yrnow])
+        makedirs(path.join(DLITE, 'Y'+yrnow), exist_ok=True)
 
         # Concatenate, then convert back to netCDF4, two ways:
         dtmp = xr.open_mfdataset(fcat, mask_and_scale=False)
@@ -432,24 +449,16 @@ def acquire(jdnow, **xlargs):
 
     # Slightly terrifying
     if RMTMPS:
-        for ff in glob(ftmp + '*'):
-            remove(ff)
-        for ff in glob(DIRTMP + '/*_' + dnow + 'T*_*' + FTAIL + '*'):
-            remove(ff)
         try:
-            rmdir(DIRTMP)
-        except Exception:
+            rmtree(DIRTMP)
+        except Exception as e:
+            print(e)
             pass
     if RMORBS:
-        for ff in glob(DORBIT + '/Y' + yrnow + '/' + fwild + '*'):
-            remove(ff)
         try:
-            rmdir(DORBIT + '/Y' + yrnow)
-        except Exception:
-            pass
-        try:
-            rmdir(DORBIT)
-        except Exception:
+            rmtree(DORBIT)
+        except Exception as e:
+            print(e)
             pass
 
     return xlargs

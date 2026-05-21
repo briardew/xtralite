@@ -1,7 +1,7 @@
 *.py[co]
 .*.swp
 backup
-data
+data*
 scratch
 octave
 build

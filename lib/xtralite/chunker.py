@@ -14,7 +14,7 @@ Convert retrievals into xtralite and chunk for assimilation with CoDAS
 
 from glob import glob
 from subprocess import call
-from os import path
+from os import path, makedirs
 from datetime import datetime, timedelta
 
 import numpy as np
@@ -85,7 +85,8 @@ def split3hr(fin, date, **xlargs):
 
             ds = xr.open_dataset(fin)
             ds = ds.isel({RECDIM:range(vals[2],vals[3]+1)})
-            ds.to_netcdf(ftmp)
+            # Pre-load to avoid hang?
+            ds.load().to_netcdf(ftmp)
             ds.close()
 
     if RMTMPS: pout = call(['rm', fin])
@@ -135,7 +136,7 @@ def paste6hr(date, dprv, **xlargs):
         if not path.isfile(fout) or xlargs.get('repro',False):
             if VERBOSE: print('* Writing     ' + path.basename(fout))
 
-            pout = call(['mkdir', '-p', DIROUT])
+            makedirs(DIROUT, exist_ok=True)
 
             ## An unfortunate hack to keep RECDIM dtype constant
             ds = xr.open_dataset(flist[0])
@@ -151,7 +152,7 @@ def paste6hr(date, dprv, **xlargs):
             if 'contact' in ds.attrs:
                 contact = contact + ' / ' + ds.attrs['contact']
             ds.attrs['contact'] = contact
-            ds.to_netcdf(fout)
+            ds.load().to_netcdf(fout)
             ds.close()
 
         if RMTMPS: pout = call(['rm', '-f', fleft, frght])
@@ -193,7 +194,7 @@ def chunk(jdnow, **xlargs):
         fin = sorted(flist, key=path.getmtime)[-1]
 
         print('* Processing  ' + path.basename(fin))
-        pout = call(['mkdir', '-p', xlargs['chunk']])
+        makedirs(xlargs['chunk'], exist_ok=True)
 
         # Convert data to standard format
         if VERBOSE:

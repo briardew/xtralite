@@ -65,6 +65,7 @@ def build(**xlargs):
         sys.stdout.flush()
         sleep(1)
     sys.stdout.write('\n\n')
+    sys.stdout.flush()
 
     # Loop over variable and satellite if unspecified
     xltame = dict(xlargs)

@@ -126,7 +126,7 @@ def acquire(jdnow, **xlargs):
     yrnow = str(jdnow.year)
 
     # Download daily files
-    cmd = (['wget', '--no-check-certificate'] + wgargs +
+    cmd = (['wget', '-nv', '--no-check-certificate'] + wgargs +
         [SERVE + '/' + ardir + '/' + jdnow.strftime('%Y/%m') +
         '/' + fget, '-P', xlargs['daily'] + '/Y' + yrnow])
     pout = call(cmd)

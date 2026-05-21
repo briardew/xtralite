@@ -22,7 +22,8 @@ RECDIM = 'nsound'
 def translate(fin, ftr, var):
     '''Translate European GHG retrievals to CoDAS format'''
 
-    varlo = var.lower()
+    icut = var.find('-') if var.find('-') > 0 else len(var)
+    varlo = var.lower()[0:icut]
 
     dd = xr.open_dataset(fin)
     if 'sounding_dim' in dd.dims:

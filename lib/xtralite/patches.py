@@ -13,7 +13,7 @@ Monkey patches for xtralite
 
 import xarray
 
-# monkey path for xarray fill value bug (2023/04/07)
+# monkey path for xarray fill value bug (2023-04-07)
 xarray.Dataset._to_netcdf_bug = xarray.Dataset.to_netcdf
 def _to_netcdf_fix(self, *args, **kwargs):
     for name in self.variables:

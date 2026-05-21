@@ -11,7 +11,7 @@ ACOS (GOSAT, OCO-2, OCO-3) support for xtralite
 # Todo:
 #===============================================================================
 
-from os import path
+from os import path, makedirs
 from subprocess import call
 from glob import glob
 from datetime import datetime, timedelta
@@ -39,9 +39,12 @@ def setup(jdnow, **xlargs):
     sat = name[:isat]
     ver = name[isat+1:]
 
+    # Extra work to handle naming differences
     sax = sat if sat != 'gosat' else 'acos'
+
+    # Apply default version if unspecified
     if len(ver) == 0:
-        if sat == 'gosat': ver = 'v9r'
+        if sat == 'gosat': ver = 'v11r'
         if sat == 'oco2':  ver = 'v11.2r'
         if sat == 'oco3':  ver = 'v11r'
 
@@ -50,13 +53,13 @@ def setup(jdnow, **xlargs):
     xlargs['ver'] = ver
 
     # Build directory names
-    head  = xlargs.get('head',  './data')
+    head  = xlargs.get('head',  'data')
     daily = xlargs.get('daily', '*')
     prep  = xlargs.get('prep',  '*')
     chunk = xlargs.get('chunk', '*')
 
     if '*' in daily:
-        xlargs['daily'] = head + '/acos/' + sat + '_' + ver + '_daily'
+        xlargs['daily'] = path.join(head, 'acos', sat+'_'+ver+'_daily')
  
     chops = xlargs['daily'].rsplit('_daily', 1)
     if len(chops) == 1: chops = chops + ['']
@@ -69,10 +72,10 @@ def setup(jdnow, **xlargs):
         if len(chops) == 1: chops = chops + ['']
         xlargs['chunk'] = '_chunks'.join(chops)
 
-    # This could be set elsewhere, maybe in xtralite, unless
-    # you're planning on running the chunker from this module.
-    xlargs['fhead']  = sax + '_LtCO2_'
-    xlargs['fhout']  = sax + '_' + ver + '_LtCO2_'
+    # ACOS v##.# denotes the FORWARD stream, v##.#r denotes REPROCESSED
+    ptag = '_LtCO2_' if ver[-1] == 'r' else '_FwCO2_'
+    xlargs['fhead']  = sax + ptag
+    xlargs['fhout']  = sax + '_' + ver + ptag
     xlargs['ftail']  = '.nc4'
     xlargs['ftout']  = '.nc4'
     xlargs['yrdigs'] = 2
@@ -88,8 +91,9 @@ def setup(jdnow, **xlargs):
         wgargs = wgargs + ['-N']
     if xlargs.get('log',None) is not None:
         wgargs = wgargs + ['-nv', '-a', xlargs['log']]
-    # Forward processing is retrieved elsewhere
-    if ver[-1] != 'f': xlargs['wgargs'] = wgargs
+#   # Forward processing is retrieved elsewhere
+#   if ver[-1] != 'f': xlargs['wgargs'] = wgargs
+    xlargs['wgargs'] = wgargs
 
     return xlargs
 
@@ -187,13 +191,17 @@ def prep(fname, sat, ver):
     return None
 
 def acquire(jdnow, **xlargs):
+    ver = xlargs.get('ver', '')
+    # OCO-2 v11.2 denotes the FORWARD stream, so treat as default
+    stream = 'Lite' if ver[-1] == 'r' else 'Fwd'
+
     # Archive directory
     if xlargs['sat'] == 'gosat':
         ardir = ('GOSAT_TANSO_Level2/'            + xlargs['sax'].upper() +
-            '_L2_Lite_FP.' + xlargs['ver'][1:])
+            '_L2_' + stream + '_FP.' + ver[1:])
     else:
         ardir = (xlargs['sat'].upper() + '_DATA/' + xlargs['sax'].upper() +
-            '_L2_Lite_FP.' + xlargs['ver'][1:])
+            '_L2_' + stream + '_FP.' + ver[1:])
 
     # Download and prepare lite files
     wgargs = xlargs.get('wgargs', [])
@@ -208,10 +216,10 @@ def acquire(jdnow, **xlargs):
         '--auth-no-challenge=on', '--keep-session-cookies',
         '--content-disposition'] + wgargs +
         [SERVE + '/' + ardir + '/' + jdnow.strftime('%Y') + '/',
-        '-A', fget, '-P', xlargs['daily'] + '/Y' + yrnow])
+        '-A', fget, '-P', path.join(xlargs['daily'], 'Y'+yrnow)])
 
     # Prepare files
-    flist = glob(xlargs['daily'] + '/Y' + yrnow + '/' + fget)
+    flist = glob(path.join(xlargs['daily'], 'Y'+yrnow, fget))
     if len(flist) == 0:
         return xlargs
 
@@ -223,9 +231,9 @@ def acquire(jdnow, **xlargs):
     if path.isfile(fprep) and not xlargs.get('repro',False):
         return xlargs
 
-    pout = call(['mkdir', '-p', xlargs['prep'] + '/Y' + yrnow])
+    makedirs(path.join(xlargs['prep'], 'Y'+yrnow), exist_ok=True)
     pout = call(['cp', '-f', flite, fprep])
 
-    prep(fprep, xlargs['sat'], xlargs['ver'])
+    prep(fprep, xlargs['sat'], ver)
 
     return xlargs

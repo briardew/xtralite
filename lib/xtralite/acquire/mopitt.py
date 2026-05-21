@@ -29,10 +29,14 @@ satlist  = ['terra']
 satday0  = [datetime(2000, 3, 1)]
 namelist = [modname + '_' + vv for vv in varlist]
 
-# This value changes: lags present by about a year
-JDNRT = datetime(2023,11,25)
+# This date determines when to switch to the forward stream. Notes:
+#    1. Retrospective data lags the present by about a year
+#    2. Forward stream data is archived for at least a few years
+#    3. Changing this date will affect reproducibility
+JDNRT = datetime(2024,11,11)			# Value on 2025-05-31, suggest changing when it gets to 2025-01-01
 
-SERVE = 'https://l5ftl01.larc.nasa.gov/ops/misrl2l3/MOPITT'
+#SERVE = 'https://l5ftl01.larc.nasa.gov/ops/misrl2l3/MOPITT'
+SERVE = 'https://asdc.larc.nasa.gov/data/MOPITT'
 
 def setup(jdnow, **xlargs):
     from xtralite.acquire import default

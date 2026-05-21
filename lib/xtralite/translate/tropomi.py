@@ -20,18 +20,18 @@ from xtralite.patches import xarray as xr
 
 FILLINT = -9999
 
-def _generic_beg(dd):
-    dd = dd.rename({'sounding':'nsound', 'layer':'navg',
+def _generic_beg(ds):
+    ds = ds.rename({'sounding':'nsound', 'layer':'navg',
         'date':'date_components', 'time':'time_offset', 'latitude':'lat',
         'longitude':'lon'})
 
     # Redefine navg to index
-    navg = dd.sizes['navg']
-    dd = dd.assign_coords(navg=np.arange(navg, dtype='int32'))
+    navg = ds.sizes['navg']
+    ds = ds.assign_coords(navg=np.arange(navg, dtype='int32'))
 
     # Assign date and time variables
-    dvec = dd.variables['date_components'].values.astype('int32')
-    nsound = dd.sizes['nsound']
+    dvec = ds.variables['date_components'].values.astype('int32')
+    nsound = ds.sizes['nsound']
 
     date = np.zeros(nsound, dtype='int32')
     time = np.zeros(nsound, dtype='int32')
@@ -39,83 +39,94 @@ def _generic_beg(dd):
     date = dvec[:,0]*10000 + dvec[:,1]*100 + dvec[:,2]
     time = dvec[:,3]*10000 + dvec[:,4]*100 + dvec[:,5]
 
-    dd = dd.assign(date=('nsound', date, {'units':'YYYYMMDD',
+    ds = ds.assign(date=('nsound', date, {'units':'YYYYMMDD',
         'long_name':'sounding date', '_FillValue':np.int32(FILLINT)}))
-    dd = dd.assign(time=('nsound', time, {'units':'hhmmss',
+    ds = ds.assign(time=('nsound', time, {'units':'hhmmss',
         'long_name':'sounding time', '_FillValue':np.int32(FILLINT)}))
 
-    return dd
+    return ds
 
-def _generic_end(dd):
+def _generic_end(ds):
     # Create prior column if prior profile exists
-    if 'priorpro' in dd.variables:
-        apro = dd.variables['priorpro']
+    if 'priorpro' in ds.variables:
+        apro = ds.variables['priorpro']
         acol = np.sum(apro.values, axis=1)
         attrs = {'units':'mol m-2', 'long_name':'total column a priori'}
-        dd = dd.assign(priorobs=('nsound', acol, attrs))
+        ds = ds.assign(priorobs=('nsound', acol, attrs))
 
-    dd = dd.drop_vars(('sounding_id', 'date_components', 'time_offset',
+    ds = ds.drop_vars(['sounding_id', 'date_components', 'time_offset',
         'qa_value', 'footprint', 'surface_classification',
-        'surface_pressure', 'solar_zenith_angle', 'processing_quality_flags'))
+        'surface_pressure', 'solar_zenith_angle', 'processing_quality_flags'])
 
     # Delete global attributes too?
     # Delete variable attributes that are no longer valid
 
-    return dd
+    return ds
 
 def translate_co(fin, ftr):
     '''Translate TROPOMI column CO retrievals to CoDAS format'''
 
-    dd = xr.open_dataset(fin)
-    dd = _generic_beg(dd)
+    # Needed so xarray doesn't try to cast ints to floats :(
+    ds = xr.open_dataset(fin, mask_and_scale=False)
+    ds = _generic_beg(ds)
 
-    dd = dd.rename({'carbonmonoxide_total_column':'obs',
+    ds = ds.rename({'carbonmonoxide_total_column':'obs',
         'carbonmonoxide_total_column_precision':'uncert',
         'column_averaging_kernel':'avgker'})
 
     # Assign edge dimension (nedge) and edge altitudes for avgker (zeavg)
-    nsound = dd.sizes['nsound']
-    nedge  = dd.sizes['navg'] + 1
+    nsound = ds.sizes['nsound']
+    nedge  = ds.sizes['navg'] + 1
 
-    zsurf = dd.variables['surface_altitude'].values
+    zsurf = ds.variables['surface_altitude'].values
     zgrid = np.flip(np.arange(0,nedge*1000,1000, dtype='float32'))
     zeavg = np.tile(zsurf, (nedge,1)).T + np.tile(zgrid, (nsound,1))
 
-    dd = dd.assign(nedge=('nedge', np.arange(nedge, dtype='int32')))
-    dd = dd.assign(zeavg=(('nsound','nedge'), zeavg, {'units':'m',
+    ds = ds.assign(nedge=('nedge', np.arange(nedge, dtype='int32')))
+    ds = ds.assign(zeavg=(('nsound','nedge'), zeavg, {'units':'m',
         'long_name':'altitude edges'}))
 
-    dd = dd.drop_vars('surface_altitude')
+    ds = ds.drop_vars('surface_altitude')
 
-    dd = _generic_end(dd)
-    dd.to_netcdf(ftr)
-    dd.close()
+    ds = _generic_end(ds)
+    ds.to_netcdf(ftr)
+    ds.close()
 
     return None
 
 def translate_ch4(fin, ftr):
     '''Translate TROPOMI column CH4 retrievals to CoDAS format'''
 
-    dd = xr.open_dataset(fin)
-    dd = _generic_beg(dd)
+    # Needed so xarray doesn't try to cast ints to floats :(
+    ds = xr.open_dataset(fin, mask_and_scale=False)
 
-    dd = dd.rename({'level':'nedge', 'altitude_levels':'zeavg',
-        'methane_mixing_ratio_bias_corrected':'obs',
+    snowice1 = ds['surface_classification'] & 184 == 184
+    snowice2 = ((0.55 <= ds['surface_albedo_NIR']) &
+        (ds['surface_albedo_SWIR'] <= 0.35) &
+        (ds['surface_classification'] & 3 == 0))
+    isok = ((ds['surface_classification'] & 3 == 0) &
+        ~snowice1 & ~snowice2)
+    ds = ds.isel(sounding=isok)
+
+    ds = _generic_beg(ds)
+    ds = ds.rename({'level':'nedge', 'altitude_levels':'zeavg',
+#       'methane_mixing_ratio_bias_corrected':'obs',
+        'methane_mixing_ratio_blended':'obs',
         'methane_mixing_ratio_precision':'uncert',
         'column_averaging_kernel':'avgker',
         'methane_profile_apriori':'priorpro'})
 
     # Convert obs and uncert to mol m-2
     # (avgker has units of "1", so seems legit?)
-    dry = dd.variables['dry_air_subcolumns']
+    dry = ds.variables['dry_air_subcolumns']
 
-    xcol = dd.variables['obs']
+    xcol = ds.variables['obs']
     xcol.values = 1.e-9 * xcol.values * np.sum(dry.values, axis=1)
     xcol.attrs['units'] = 'mol m-2'
     xcol.attrs['standard_name'] = 'atmosphere_mole_content_of_methane'
     xcol.attrs['long_name'] = 'Vertically integrated CH4 column'
 
-    ucol = dd.variables['uncert']
+    ucol = ds.variables['uncert']
     ucol.values = 1.e-9 * ucol.values * np.sum(dry.values, axis=1)
     ucol.attrs['units'] = 'mol m-2'
     ucol.attrs['standard_name'] = ('atmosphere_mole_content_of_methane ' +
@@ -123,107 +134,116 @@ def translate_ch4(fin, ftr):
     ucol.attrs['long_name'] = ('Standard error of the vertically ' +
         'integrated CH4 column')
 
-    dd = dd.drop_vars(('dry_air_subcolumns', 'methane_mixing_ratio'))
+    ds = ds.drop_vars(['dry_air_subcolumns', 'methane_mixing_ratio',
+        'methane_mixing_ratio_bias_corrected', 'methane_mixing_ratio_blended',
+        'viewing_zenith_angle', 'surface_albedo_SWIR', 'surface_albedo_NIR',
+        'aerosol_optical_thickness_SWIR', 'aerosol_optical_thickness_NIR',
+        'latitude_bounds', 'longitude_bounds'],
+        errors='ignore')
+    ds = ds.drop_dims(['corner'], errors='ignore')
+    ds = _generic_end(ds)
 
-    dd = _generic_end(dd)
-    dd.to_netcdf(ftr)
-    dd.close()
+    ds.to_netcdf(ftr)
+    ds.close()
 
     return None
 
 def translate_hcho(fin, ftr):
     '''Translate TROPOMI column HCHO retrievals to CoDAS format'''
 
-    dd = xr.open_dataset(fin)
-    dd = _generic_beg(dd)
+    # Needed so xarray doesn't try to cast ints to floats :(
+    ds = xr.open_dataset(fin, mask_and_scale=False)
+    ds = _generic_beg(ds)
 
-    dd = dd.rename({'formaldehyde_tropospheric_vertical_column':'obs',
+    ds = ds.rename({'formaldehyde_tropospheric_vertical_column':'obs',
         'formaldehyde_tropospheric_vertical_column_precision':'uncert',
         'averaging_kernel':'avgker',
         'formaldehyde_profile_apriori':'priorpro'})
 
     # Assign edge dimension (nedge) and edge pressures for avgker (peavg)
-    ak = dd.variables['tm5_constant_a'].values
-    bk = dd.variables['tm5_constant_b'].values
-    psurf = dd.variables['surface_pressure'].values
+    ak = ds.variables['tm5_constant_a'].values
+    bk = ds.variables['tm5_constant_b'].values
+    psurf = ds.variables['surface_pressure'].values
 
-    nsound = dd.sizes['nsound']
-    nedge  = dd.sizes['navg'] + 1
+    nsound = ds.sizes['nsound']
+    nedge  = ds.sizes['navg'] + 1
 
     peavg = np.zeros((nsound,nedge), dtype='float32')
     peavg[:,0] = 1.e-2 * psurf[:]
     for kk in range(nedge-1):
         peavg[:,kk+1] = 1.e-2 * (ak[:,kk] + bk[:,kk]*psurf)
 
-    dd = dd.assign(nedge=('nedge', np.arange(nedge, dtype='int32')))
-    dd = dd.assign(peavg=(('nsound','nedge'), peavg, {'units':'hPa',
+    ds = ds.assign(nedge=('nedge', np.arange(nedge, dtype='int32')))
+    ds = ds.assign(peavg=(('nsound','nedge'), peavg, {'units':'hPa',
         'long_name':'pressure edges'}))
 
-    dd = dd.drop_vars(('cloud_fraction_crb', 'tm5_constant_a',
+    ds = ds.drop_vars(['cloud_fraction_crb', 'tm5_constant_a',
         'tm5_constant_b',
-        'formaldehyde_tropospheric_vertical_column_trueness'))
+        'formaldehyde_tropospheric_vertical_column_trueness'])
 
-    dd = _generic_end(dd)
-    dd.to_netcdf(ftr)
-    dd.close()
+    ds = _generic_end(ds)
+    ds.to_netcdf(ftr)
+    ds.close()
 
     return None
 
 def translate_so2(fin, ftr):
     '''Translate TROPOMI column SO2 retrievals to CoDAS format'''
 
-    dd = xr.open_dataset(fin)
-    dd = _generic_beg(dd)
+    # Needed so xarray doesn't try to cast ints to floats :(
+    ds = xr.open_dataset(fin, mask_and_scale=False)
+    ds = _generic_beg(ds)
 
-    dd = dd.rename({'sulfurdioxide_total_vertical_column':'obs',
+    ds = ds.rename({'sulfurdioxide_total_vertical_column':'obs',
         'sulfurdioxide_total_vertical_column_precision':'uncert',
         'averaging_kernel':'avgker',
         'sulfurdioxide_profile_apriori':'priorpro'})
 
     # Assign edge dimension (nedge) and edge pressures for avgker (peavg)
-    ak = dd.variables['tm5_constant_a'].values
-    bk = dd.variables['tm5_constant_b'].values
-    psurf = dd.variables['surface_pressure'].values
+    ak = ds.variables['tm5_constant_a'].values
+    bk = ds.variables['tm5_constant_b'].values
+    psurf = ds.variables['surface_pressure'].values
 
-    nsound = dd.sizes['nsound']
-    nedge  = dd.sizes['navg'] + 1
+    nsound = ds.sizes['nsound']
+    nedge  = ds.sizes['navg'] + 1
 
     peavg = np.zeros((nsound,nedge), dtype='float32')
     peavg[:,0] = 1.e-2 * psurf[:]
     for kk in range(nedge-1):
         peavg[:,kk+1] = 1.e-2 * (ak[:,kk] + bk[:,kk]*psurf)
 
-    dd = dd.assign(nedge=('nedge', np.arange(nedge, dtype='int32')))
-    dd = dd.assign(peavg=(('nsound','nedge'), peavg, {'units':'hPa',
+    ds = ds.assign(nedge=('nedge', np.arange(nedge, dtype='int32')))
+    ds = ds.assign(peavg=(('nsound','nedge'), peavg, {'units':'hPa',
         'long_name':'pressure edges'}))
 
-    dd = dd.drop_vars(('cloud_fraction_crb', 'tm5_constant_a',
-        'tm5_constant_b', 'sulfurdioxide_total_vertical_column_trueness'))
+    ds = ds.drop_vars(['cloud_fraction_crb', 'tm5_constant_a',
+        'tm5_constant_b', 'sulfurdioxide_total_vertical_column_trueness'])
 
-    dd = _generic_end(dd)
-    dd.to_netcdf(ftr)
-    dd.close()
+    ds = _generic_end(ds)
+    ds.to_netcdf(ftr)
+    ds.close()
 
     return None
 
 def translate_no2(fin, ftr):
     '''Translate TROPOMI column NO2 retrievals to CoDAS format'''
 
-    dd = xr.open_dataset(fin)
-    dd = _generic_beg(dd)
+    # Needed so xarray doesn't try to cast ints to floats :(
+    ds = xr.open_dataset(fin, mask_and_scale=False)
+    ds = _generic_beg(ds)
 
-    dd = dd.rename({'nitrogendioxide_summed_total_column':'obs',
+    ds = ds.rename({'nitrogendioxide_summed_total_column':'obs',
         'nitrogendioxide_slant_column_density':'slant',
         'nitrogendioxide_summed_total_column_precision':'uncert',
         'averaging_kernel':'avgker'})
 
     # Assign edge dimension (nedge) and edge pressures for avgker (peavg)
-    ak = dd.variables['tm5_constant_a'].values
-    bk = dd.variables['tm5_constant_b'].values
-    psurf = dd.variables['surface_pressure'].values
+    ak = ds.variables['tm5_constant_a'].values
+    bk = ds.variables['tm5_constant_b'].values
+    psurf = ds.variables['surface_pressure'].values
 
-    nsound = dd.sizes['nsound']
-    nedge  = dd.sizes['navg'] + 1
+    nsound = ds.sizes['nsound']
+    nedge  = ds.sizes['navg'] + 1
 
     peavg = np.zeros((nsound,nedge), dtype='float32')
     peavg[:,0] = 1.e-2 * psurf[:]
@@ -231,36 +251,37 @@ def translate_no2(fin, ftr):
 #       Note extra dimension for NO2 and not SO2 and HCHO
         peavg[:,kk+1] = 1.e-2 * (ak[:,kk,1] + bk[:,kk,1]*psurf)
 
-    dd = dd.assign(nedge=('nedge', np.arange(nedge, dtype='int32')))
-    dd = dd.assign(peavg=(('nsound','nedge'), peavg, {'units':'hPa',
+    ds = ds.assign(nedge=('nedge', np.arange(nedge, dtype='int32')))
+    ds = ds.assign(peavg=(('nsound','nedge'), peavg, {'units':'hPa',
         'long_name':'pressure edges'}))
 
-    dd = dd.drop_vars(('cloud_fraction_crb', 'tm5_constant_a',
-        'tm5_constant_b', 'vertices'))
+    ds = ds.drop_vars(['cloud_fraction_crb', 'tm5_constant_a',
+        'tm5_constant_b', 'vertices'])
 
-    dd = _generic_end(dd)
-    dd.to_netcdf(ftr)
-    dd.close()
+    ds = _generic_end(ds)
+    ds.to_netcdf(ftr)
+    ds.close()
 
     return None
 
 def translate_o3(fin, ftr):
     '''Translate TROPOMI column O3 retrievals to CoDAS format'''
 
-    dd = xr.open_dataset(fin)
-    dd = _generic_beg(dd)
+    # Needed so xarray doesn't try to cast ints to floats :(
+    ds = xr.open_dataset(fin, mask_and_scale=False)
+    ds = _generic_beg(ds)
 
-    dd = dd.rename({'level':'nedge', 'pressure_grid':'peavg',
+    ds = ds.rename({'level':'nedge', 'pressure_grid':'peavg',
         'ozone_total_vertical_column':'obs',
         'ozone_total_vertical_column_precision':'uncert',
         'averaging_kernel':'avgker',
         'ozone_profile_apriori':'priorpro'})
 
-    dd = dd.drop_vars('cloud_fraction_crb')
+    ds = ds.drop_vars('cloud_fraction_crb')
 
-    dd = _generic_end(dd)
-    dd.to_netcdf(ftr)
-    dd.close()
+    ds = _generic_end(ds)
+    ds.to_netcdf(ftr)
+    ds.close()
 
     return None
 
