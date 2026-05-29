@@ -1,4 +1,5 @@
 *.py[co]
+*.egg-info
 .*.swp
 backup
 data*
@@ -7,4 +8,3 @@ octave
 build
 dist
 env
-lib/xtralite.egg-info

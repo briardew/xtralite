@@ -1,2 +1,0 @@
-[console_scripts]
-xtralite = xtralite.__main__:main
