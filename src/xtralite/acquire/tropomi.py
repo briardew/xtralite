@@ -28,6 +28,7 @@ from shutil import rmtree
 from subprocess import call, PIPE, Popen
 from glob import glob
 from datetime import datetime, timedelta
+from importlib.resources import files
 
 import numpy as np
 import netCDF4
@@ -130,7 +131,7 @@ def acquire(jdnow, **xlargs):
         VCLOUD = ''
         VCHECK = 'methane_mixing_ratio_bias_corrected'
         dnames = dnames + ['level', 'corner']
-        vnames1d  = vnames1d  + ['surface_albedo_SWIR',
+        vnames1d = vnames1d + ['surface_albedo_SWIR',
             'surface_albedo_NIR',
             'aerosol_optical_thickness_SWIR',
             'aerosol_optical_thickness_NIR',
@@ -138,7 +139,7 @@ def acquire(jdnow, **xlargs):
             'methane_mixing_ratio_bias_corrected',
             'methane_mixing_ratio_blended',
             'methane_mixing_ratio_precision']
-        vnames2d  = vnames2d  + ['column_averaging_kernel',
+        vnames2d = vnames2d + ['column_averaging_kernel',
             'methane_profile_apriori', 'altitude_levels', 'dry_air_subcolumns',
             'latitude_bounds', 'longitude_bounds']
     elif varlo == 'co':
@@ -240,12 +241,11 @@ def acquire(jdnow, **xlargs):
 #           (jdnow + timedelta(mm)).strftime('%Y/%j') + '/' +
 #           ' -A "' + fwild + '" -P ' + path.join(DORBIT, 'Y'+yrnow),
 #           shell=True)
-    pout = call([path.expanduser('~/bin/tropomi_download.py'), varlo,
-        jdnow.strftime('%Y-%m-%d'), '--mode', fmode, '--ver', arver,
-        '--output', DORNOW])
+    pout = call(['tropomi_download', varlo, jdnow.strftime('%Y-%m-%d'),
+        '--mode', fmode, '--ver', arver, '--output', DORNOW])
     if varlo == 'ch4':
-        pout = call([path.expanduser('~/bin/tropomi_blend.py'), DORNOW,
-            path.expanduser('~/share/tropomi_model.pkl')])
+        pout = call(['tropomi_blend', DORNOW,
+            files('xtralite.acquire').joinpath('tropomi_model.pkl.gz')])
 
     # Convert orbit files into daily lite files
     # ---

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-'''
-Entry point for xtralite module
-'''
+"""
+xtralite atmospheric constituent observation acquisition and translation
+"""
 # Copyright 2022-2023 Brad Weir <briardew@gmail.com>. All rights reserved.
 # Licensed under the Apache License 2.0, which can be obtained at
 # http://www.apache.org/licenses/LICENSE-2.0
@@ -13,22 +13,17 @@ Entry point for xtralite module
 #===============================================================================
 
 import sys
+import argparse
 from datetime import datetime
-from argparse import ArgumentParser
 
 from xtralite import acquire, builder
 
-# Parse command-line options
-class XLParser(ArgumentParser):
-    def error(self, message):
-        sys.stderr.write('\n*** ERROR **** %s\n\n' % message)
-        self.print_help()
-        sys.exit(2)
-
 # Read arguments
-parser = XLParser(description=__doc__,
-    usage='xtralite name [options]',
-    epilog='supported names: ' + ', '.join(acquire.namelist))
+parser = argparse.ArgumentParser(
+    description=__doc__,
+    epilog='supported names: ' + ', '.join(acquire.namelist),
+    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+)
 parser.add_argument('name', help='name of products to build ' +
     '(see list below)')
 parser.add_argument('--beg', help='begin date (default: %(default)s)',

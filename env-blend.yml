@@ -1,0 +1,26 @@
+# To create and activate, run:
+#     conda env create -f env-blend.yml
+#     conda activate tropomi_blend
+name: tropomi_blend
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.9
+  - numpy=1.23.5
+  - netcdf4=1.6.3
+  - pandas=1.5.3
+  - cartopy=0.21.1
+  - pyproj=3.4.1
+  - scipy=1.10.0
+  - shap=0.41.0
+  - geopy=2.3.0
+  - geopandas=0.12.2
+  - flaml=1.1.3
+  - pyyaml=6.0
+  - scikit-learn=1.2.0
+  - lightgbm=3.3.5
+  - xarray=2023.6.0
+  - h5netcdf=1.3.0
+  - dask
+  - xarray
