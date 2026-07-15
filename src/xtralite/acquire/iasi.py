@@ -16,7 +16,8 @@ from os import path
 from subprocess import call
 from datetime import datetime, timedelta
 
-SERVE = 'https://cds-espri.ipsl.fr'
+#SERVE = 'https://cds-espri.ipsl.fr'
+SERVE = 'https://thredds-su.ipsl.fr'
 # HNO3 and other NRT products available from Eumetcast
 # CH4 from C3S?
 # Also cf acsaf.org
@@ -107,8 +108,10 @@ def setup(jdnow, **xlargs):
     xlargs['fhead'] = fhead
     xlargs['fget']  = fget
     xlargs['fhout'] = mod + '_' + var + '_' + sat + '_' + ver + '.'
-    xlargs['ardir'] = ('iasi' + sat[-1].lower() + 'l2/' +
-        'iasi_' + var.lower() + '/' + verin)
+#   xlargs['ardir'] = ('iasi' + sat[-1].lower() + 'l2/' +
+#       'iasi_' + var.lower() + '/' + verin)
+    xlargs['ardir'] = ('thredds/fileServer/IASI/L2/' + var.upper() + '/METOP-' +
+        sat[-1].upper() + '_2')
     xlargs['wgargs'] = ['-N', '-c']
 
     if '*' not in var: xlargs['translate'] = translate[var.lower()]
