@@ -5,14 +5,12 @@
 import requests
 #import json
 import pandas as pd
-import xarray as xr
 import sys
 from os import path, makedirs
 import argparse
 import re
 from datetime import datetime, timedelta
 from netrc import netrc
-from time import sleep
 
 VARLIST = ['ch4', 'co', 'hcho', 'so2', 'no2', 'o3']
 MODELIST = ['RPRO', 'OFFL', 'NRTI']
@@ -27,7 +25,7 @@ def get_date(ss) -> datetime:
     try:
         return datetime.strptime(ss, '%Y-%m-%d')
     except ValueError:
-        raise argparse.ArgumentTypeError(f'Invalid date format: "{date}". Expected YYYY-MM-DD.')
+        raise argparse.ArgumentTypeError(f'Invalid date format: "{ss}"')
 
 def get_tokens(username: str, password: str) -> tuple[str, str]:
     auth_data = {'client_id':'cdse-public', 'username':username,
@@ -37,9 +35,8 @@ def get_tokens(username: str, password: str) -> tuple[str, str]:
         response = requests.post(token_url, data=auth_data)
         response.raise_for_status()
     except Exception as e:
-        print(f'Response from server: {response.json()}')
-        raise Exception(f'Keycloak token creation failed: {e}')
-    print('Authentication token retrieved')
+        raise Exception(f'Access token retrieval failed: {e}')
+    print('Access token retrieved')
 
     return response.json()['access_token'], response.json()['refresh_token']
 
@@ -51,9 +48,8 @@ def refresh_access_token(refresh_token: str) -> str:
         response = requests.post(token_url, data=auth_data)
         response.raise_for_status()
     except Exception as e:
-        raise Exception(f'Access token refresh failed. ' +
-            'Reponse from the server was: {response.json()}')
-    print('Authentication token refreshed')
+        raise Exception(f'Refresh token retrieval failed: {e}')
+    print('Refresh token retrieved')
 
     return response.json()['access_token']
 
@@ -141,7 +137,7 @@ def download(var: str, date: datetime, mode=None, ver=DEFVER, dirout=DEFOUT):
                 response = session.get(url, stream=True)
                 response.raise_for_status()
                 break
-            except requests.exceptions.RequestException as e:
+            except requests.exceptions.RequestException:
                 access_token = refresh_access_token(refresh_token)
                 headers = {'Authorization': f'Bearer {access_token}'}
                 session.headers.update(headers)
@@ -165,7 +161,7 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('var', metavar='var', type=str, choices=VARLIST,
         help='gas name: ' + ', '.join(VARLIST))
-    parser.add_argument('date', metavar='yyyy-mm-dd', type=get_date,
+    parser.add_argument('date', metavar='YYYY-MM-DD', type=get_date,
         help='date')
     parser.add_argument('-m', '--mode', metavar='MODE', type=str,
         choices=MODELIST, help='data mode: ' + ', '.join(MODELIST))
