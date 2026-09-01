@@ -37,8 +37,8 @@ def get_tokens(username: str, password: str) -> tuple[str, str]:
         response = requests.post(token_url, data=auth_data)
         response.raise_for_status()
     except Exception as e:
-        raise Exception(f'Keycloak token creation failed. ' +
-            'Reponse from the server was: {response.json()}')
+        print(f'Response from server: {response.json()}')
+        raise Exception(f'Keycloak token creation failed: {e}')
     print('Authentication token retrieved')
 
     return response.json()['access_token'], response.json()['refresh_token']
