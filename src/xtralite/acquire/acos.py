@@ -11,23 +11,28 @@ ACOS (GOSAT, OCO-2, OCO-3) support for xtralite
 # Todo:
 #===============================================================================
 
+import sys
 from os import path, makedirs
-from subprocess import call
+from shutil import copy
 from glob import glob
-from datetime import datetime, timedelta
-
+from datetime import datetime
+from time import sleep
+import earthaccess
+import requests
 import numpy as np
 import netCDF4
-# stop xarray from recasting coordinates
-#import xarray as xr
-from xtralite.patches import xarray as xr
 
-SERVE = 'https://oco2.gesdisc.eosdis.nasa.gov/data'
 
 varlist = ['co2']
 satlist = ['gosat', 'oco2', 'oco3']
 satday0 = [datetime(2009, 4, 1), datetime(2014, 8, 1), datetime(2019, 8, 1)]
 namelist = [ss for ss in satlist]
+
+passexs = (
+    requests.exceptions.HTTPError,
+    requests.exceptions.ReadTimeout,
+)
+
 
 def setup(jdnow, **xlargs):
     from xtralite.translate import acos as translate
@@ -36,7 +41,7 @@ def setup(jdnow, **xlargs):
     name = xlargs['name']
     isat = name.rfind('_')
     if isat == -1: isat = len(name)
-    sat = name[:isat]
+    sat = name[:isat].lower().replace('-', '')
     ver = name[isat+1:]
 
     # Extra work to handle naming differences
@@ -44,7 +49,7 @@ def setup(jdnow, **xlargs):
 
     # Apply default version if unspecified
     if len(ver) == 0:
-        if sat == 'gosat': ver = 'v11r'
+        if sat == 'gosat': ver = 'v11'
         if sat == 'oco2':  ver = 'v11.2r'
         if sat == 'oco3':  ver = 'v11r'
 
@@ -59,7 +64,7 @@ def setup(jdnow, **xlargs):
     chunk = xlargs.get('chunk', '*')
 
     if '*' in daily:
-        xlargs['daily'] = path.join(head, 'acos', sat+'_'+ver+'_daily')
+        xlargs['daily'] = path.join(head, 'acos', f'{sat}_{ver}_daily')
  
     chops = xlargs['daily'].rsplit('_daily', 1)
     if len(chops) == 1: chops = chops + ['']
@@ -72,10 +77,11 @@ def setup(jdnow, **xlargs):
         if len(chops) == 1: chops = chops + ['']
         xlargs['chunk'] = '_chunks'.join(chops)
 
-    # ACOS v##.# denotes the FORWARD stream, v##.#r denotes REPROCESSED
-    ptag = '_LtCO2_' if ver[-1] == 'r' else '_FwCO2_'
-    xlargs['fhead']  = sax + ptag
-    xlargs['fhout']  = sax + '_' + ver + ptag
+    # OCO-2 v##.# denotes the FORWARD stream, while v##.#r is REPROCESSED
+    # ACOS v##.# denotes the REPROCESSED stream
+    ptag = 'LtCO2' if ver[-1] == 'r' or sax == 'acos' else 'FwCO2'
+    xlargs['fhead']  = f'{sax}_{ptag}_'
+    xlargs['fhout']  = f'{sax}_{ver}_{ptag}_'
     xlargs['ftail']  = '.nc4'
     xlargs['ftout']  = '.nc4'
     xlargs['yrdigs'] = 2
@@ -85,17 +91,8 @@ def setup(jdnow, **xlargs):
     if sat[:5] == 'gosat': xlargs['translate']  = translate.gosat
     if sat[:3] == 'oco':   xlargs['translate']  = translate.oco
 
-    # Set wget arguments
-    wgargs = ['-r', '-np', '-nd', '-e', 'robots=off']
-    if not xlargs.get('repro',False):
-        wgargs = wgargs + ['-N']
-    if xlargs.get('log',None) is not None:
-        wgargs = wgargs + ['-nv', '-a', xlargs['log']]
-#   # Forward processing is retrieved elsewhere
-#   if ver[-1] != 'f': xlargs['wgargs'] = wgargs
-    xlargs['wgargs'] = wgargs
-
     return xlargs
+
 
 def prep(fname, sat, ver):
     # Default settings
@@ -134,7 +131,7 @@ def prep(fname, sat, ver):
     try:
         modes = ncf.groups['Sounding'].variables['operation_mode'][:]
         glint = modes  == 1
-    except:
+    except Exception:
         glint = surfts == 0
 
     ibad = np.logical_and(uncs[:] < UNCTHR, flags[:] == 0)
@@ -190,50 +187,92 @@ def prep(fname, sat, ver):
     print('')
     return None
 
-def acquire(jdnow, **xlargs):
-    ver = xlargs.get('ver', '')
-    # OCO-2 v11.2 denotes the FORWARD stream, so treat as default
-    stream = 'Lite' if ver[-1] == 'r' else 'Fwd'
 
-    # Archive directory
-    if xlargs['sat'] == 'gosat':
-        ardir = ('GOSAT_TANSO_Level2/'            + xlargs['sax'].upper() +
-            '_L2_' + stream + '_FP.' + ver[1:])
-    else:
-        ardir = (xlargs['sat'].upper() + '_DATA/' + xlargs['sax'].upper() +
-            '_L2_' + stream + '_FP.' + ver[1:])
+def acquire(jdnow, **xlargs):
+    xlnow = setup(jdnow, **xlargs)
+
+    ver = xlnow.get('ver', '')
+    sax = xlnow.get('sax', '')
 
     # Download and prepare lite files
-    wgargs = xlargs.get('wgargs', [])
     yrnow = str(jdnow.year)
     yrget = str(jdnow.year-2000).zfill(2)
     dget = yrget + str(jdnow.month).zfill(2) + str(jdnow.day).zfill(2)
-    fget = '*_' + dget + '_*' + xlargs['ftail']
+    fget = xlnow['fhead'] + dget + '_*' + xlnow['ftail']
+    dirget = path.join(xlargs['daily'], f'Y{yrnow}')
 
-    # Download lite files
-    pout = call(['wget', '--load-cookies', path.expanduser('~/.urs_cookies'),
-        '--save-cookies', path.expanduser('~/.urs_cookies'),
-        '--auth-no-challenge=on', '--keep-session-cookies',
-        '--content-disposition'] + wgargs +
-        [SERVE + '/' + ardir + '/' + jdnow.strftime('%Y') + '/',
-        '-A', fget, '-P', path.join(xlargs['daily'], 'Y'+yrnow)])
+    # OCO-2 v##.# denotes the FORWARD stream, while v##.#r is REPROCESSED
+    # ACOS v##.# denotes the REPROCESSED stream
+    stream = 'Lite' if ver[-1] == 'r' or sax == 'acos' else 'Fwd'
+    shorty = f'{sax.upper()}_L2_{stream}_FP'
+    granny = xlnow['fhead'] + dget + '_*'
+    verget = ver[1:]
+    # Special treatement for ACOS to allow for ver = 11r, 11.0, etc.
+    if sax == 'acos':
+        if verget[-1] == 'r': verget = verget[:-1]
+        if '.' not in verget: verget = verget + '.0'
+
+    # Wrap download in a few tries in case of connection issues
+    MAXTRIES = 10
+    SLEEPLEN = 60
+    for nn in range(MAXTRIES):
+        try:
+            earthaccess.login(strategy='netrc')
+            results = earthaccess.search_data(short_name=shorty, version=verget,
+                granule_name=granny)
+            urls = []
+            for rr in results:
+                urls += rr.data_links()
+
+            if len(urls) == 0:
+                return xlnow
+
+            # This croaks (because of parallelism?), resort to requests instead below
+            # files = earthaccess.download(urls, dirget)
+            break
+        except passexs as e:
+            print(f'{type(e).__name__}: {e}', file=sys.stderr)
+        except Exception:
+            raise
+
+        sleep(SLEEPLEN)
+
+    # Use requests for download since earthaccess croaks
+    makedirs(dirget, exist_ok=True)
+    files = [path.join(dirget, url.split('/')[-1]) for url in urls]
+    with requests.Session() as ss:
+        for url, file in zip(urls, files):
+            for nn in range(MAXTRIES):
+                try:
+                    if not path.isfile(file) or xlnow['repro']:
+                        response = ss.get(url, stream=True)
+                        response.raise_for_status()
+                        with open(file, 'wb') as fid:
+                            fid.write(response.content)
+                    break
+                except passexs as e:
+                    print(f'{type(e).__name__}: {e}', file=sys.stderr)
+                except Exception:
+                    raise
+
+                sleep(SLEEPLEN)
 
     # Prepare files
-    flist = glob(path.join(xlargs['daily'], 'Y'+yrnow, fget))
+    flist = glob(path.join(dirget, fget))
     if len(flist) == 0:
-        return xlargs
+        return xlnow
 
     # Use newest matching input file (may be different versions)
     flite = sorted(flist, key=path.getmtime)[-1]
-    fprep = flite.replace(xlargs['daily'], xlargs['prep'], 1)
+    fprep = flite.replace(xlnow['daily'], xlnow['prep'], 1)
 
     # Skip if output file exists and not reprocessing
-    if path.isfile(fprep) and not xlargs.get('repro',False):
-        return xlargs
+    if path.isfile(fprep) and not xlnow['repro']:
+        return xlnow
 
-    makedirs(path.join(xlargs['prep'], 'Y'+yrnow), exist_ok=True)
-    pout = call(['cp', '-f', flite, fprep])
+    makedirs(path.join(xlnow['prep'], f'Y{yrnow}'), exist_ok=True)
+    copy(flite, fprep)
 
-    prep(fprep, xlargs['sat'], ver)
+    prep(fprep, xlnow['sat'], ver)
 
-    return xlargs
+    return xlnow
