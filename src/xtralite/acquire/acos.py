@@ -28,9 +28,13 @@ satlist = ['gosat', 'oco2', 'oco3']
 satday0 = [datetime(2009, 4, 1), datetime(2014, 8, 1), datetime(2019, 8, 1)]
 namelist = [ss for ss in satlist]
 
-passexs = (
+MAXTRIES = 10
+SLEEPLEN = 60
+PASSEXS = (
     requests.exceptions.HTTPError,
+    requests.exceptions.SSLError,
     requests.exceptions.ReadTimeout,
+    requests.exceptions.ConnectTimeout,
 )
 
 
@@ -213,8 +217,6 @@ def acquire(jdnow, **xlargs):
         if '.' not in verget: verget = verget + '.0'
 
     # Wrap download in a few tries in case of connection issues
-    MAXTRIES = 10
-    SLEEPLEN = 60
     for nn in range(MAXTRIES):
         try:
             earthaccess.login(strategy='netrc')
@@ -230,12 +232,11 @@ def acquire(jdnow, **xlargs):
             # This croaks (because of parallelism?), resort to requests instead below
             # files = earthaccess.download(urls, dirget)
             break
-        except passexs as e:
+        except PASSEXS as e:
             print(f'{type(e).__name__}: {e}', file=sys.stderr)
+            sleep(SLEEPLEN)
         except Exception:
             raise
-
-        sleep(SLEEPLEN)
 
     # Use requests for download since earthaccess croaks
     makedirs(dirget, exist_ok=True)
@@ -245,17 +246,16 @@ def acquire(jdnow, **xlargs):
             for nn in range(MAXTRIES):
                 try:
                     if not path.isfile(file) or xlnow['repro']:
-                        response = ss.get(url, stream=True)
+                        response = ss.get(url, stream=True, timeout=60)
                         response.raise_for_status()
                         with open(file, 'wb') as fid:
                             fid.write(response.content)
                     break
-                except passexs as e:
+                except PASSEXS as e:
                     print(f'{type(e).__name__}: {e}', file=sys.stderr)
+                    sleep(SLEEPLEN)
                 except Exception:
                     raise
-
-                sleep(SLEEPLEN)
 
     # Prepare files
     flist = glob(path.join(dirget, fget))

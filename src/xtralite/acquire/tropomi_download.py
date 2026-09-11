@@ -7,6 +7,7 @@ import requests
 import pandas as pd
 import sys
 from os import path, makedirs
+from time import sleep
 import argparse
 import re
 from datetime import datetime, timedelta
@@ -16,7 +17,15 @@ VARLIST = ['ch4', 'co', 'hcho', 'so2', 'no2', 'o3']
 MODELIST = ['RPRO', 'OFFL', 'NRTI']
 DEFVER = None
 DEFOUT = '.'
+
 MAXTRIES = 10
+SLEEPLEN = 60
+PASSEXS = (
+    requests.exceptions.HTTPError,
+    requests.exceptions.SSLError,
+    requests.exceptions.ReadTimeout,
+    requests.exceptions.ConnectTimeout,
+)
 
 token_url = 'https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token'
 search_url = 'https://catalogue.dataspace.copernicus.eu/odata/v1/Products'
@@ -31,11 +40,16 @@ def get_tokens(username: str, password: str) -> tuple[str, str]:
     auth_data = {'client_id':'cdse-public', 'username':username,
         'password':password, 'grant_type':'password'}
 
-    try:
-        response = requests.post(token_url, data=auth_data)
-        response.raise_for_status()
-    except Exception as e:
-        raise Exception(f'Access token retrieval failed: {e}')
+    for nn in range(MAXTRIES):
+        try:
+            response = requests.post(token_url, data=auth_data, timeout=60)
+            response.raise_for_status()
+            break
+        except PASSEXS as e:
+            print(f'{type(e).__name__}: {e}', file=sys.stderr)
+            sleep(SLEEPLEN)
+        except Exception as e:
+            raise Exception(f'Access token retrieval failed: {e}')
     print('Access token retrieved')
 
     return response.json()['access_token'], response.json()['refresh_token']
@@ -44,11 +58,16 @@ def refresh_access_token(refresh_token: str) -> str:
     auth_data = {'client_id':'cdse-public', 'refresh_token':refresh_token,
         'grant_type': 'refresh_token'}
 
-    try:
-        response = requests.post(token_url, data=auth_data)
-        response.raise_for_status()
-    except Exception as e:
-        raise Exception(f'Refresh token retrieval failed: {e}')
+    for nn in range(MAXTRIES):
+        try:
+            response = requests.post(token_url, data=auth_data, timeout=60)
+            response.raise_for_status()
+            break
+        except PASSEXS as e:
+            print(f'{type(e).__name__}: {e}', file=sys.stderr)
+            sleep(SLEEPLEN)
+        except Exception as e:
+            raise Exception(f'Refresh token retrieval failed: {e}')
     print('Refresh token retrieved')
 
     return response.json()['access_token']
@@ -72,11 +91,16 @@ def get_orbits(var: str, today: datetime, mode=None, ver=DEFVER):
         '$orderby':'ContentDate/Start asc',
     }
 
-    response = requests.get(search_url, params=params)
-    if response.status_code != 200:
-        if response.json().get('detail') is not None:
-            print(response.json().get('detail').get('message'))
-        response.raise_for_status()
+    for nn in range(MAXTRIES):
+        try:
+            response = requests.get(search_url, params=params, timeout=60)
+            response.raise_for_status()
+            break
+        except PASSEXS as e:
+            print(f'{type(e).__name__}: {e}', file=sys.stderr)
+            sleep(SLEEPLEN)
+        except Exception as e:
+            raise Exception(f'File search failed: {e}')
 
     df = pd.DataFrame.from_dict(response.json()['value'])
 
@@ -134,13 +158,18 @@ def download(var: str, date: datetime, mode=None, ver=DEFVER, dirout=DEFOUT):
         # Get request
         for nn in range(MAXTRIES):
             try:
-                response = session.get(url, stream=True)
+                response = session.get(url, stream=True, timeout=60)
                 response.raise_for_status()
                 break
             except requests.exceptions.RequestException:
                 access_token = refresh_access_token(refresh_token)
                 headers = {'Authorization': f'Bearer {access_token}'}
                 session.headers.update(headers)
+            except PASSEXS as e:
+                print(f'{type(e).__name__}: {e}', file=sys.stderr)
+                sleep(SLEEPLEN)
+            except Exception as e:
+                raise Exception(f'File download failed: {e}')
 
         # Path to save file
         ff = path.join(dirout, title)
